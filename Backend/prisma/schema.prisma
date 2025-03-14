@@ -1,0 +1,249 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  STORE_ADMIN
+  DEVELOPER
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  WALLET
+  CRYPTO
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum DisputeStatus {
+  PENDING
+  RESOLVED
+  REJECTED
+}
+
+enum CryptoType {
+  BTC
+  ETH
+  USDT
+  USDC
+  BNB
+  XRP
+  SOL
+  ADA
+  DOGE
+  DOT
+}
+
+model User {
+  id            String         @id @default(uuid())
+  telegramId    String?        @unique
+  username      String?        @unique
+  password      String?
+  role          Role
+  wallet        Wallet?
+  cryptoWallets CryptoWallet[]
+  referrals     Referral[]     @relation("ReferrerUser")
+  referredBy    Referral[]     @relation("ReferredUser")
+  store         Store?
+  orders        Order[]
+  disputes      Dispute[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([telegramId])
+  @@index([username])
+  @@index([role])
+  @@index([createdAt])
+}
+
+model CryptoWallet {
+  id        String     @id @default(uuid())
+  type      CryptoType
+  address   String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([type])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Wallet {
+  id        String   @id @default(uuid())
+  balance   Float    @default(0.0)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([balance])
+}
+
+model Store {
+  id        String    @id @default(uuid())
+  name      String
+  owner     User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId   String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([name])
+  @@index([createdAt])
+}
+
+model ProductCategory {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([name])
+}
+
+model Product {
+  id          String          @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  stock       Int
+  store       Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeId     String
+  category    ProductCategory @relation(fields: [categoryId], references: [id])
+  categoryId  String
+  autoDeliver Boolean         @default(false)
+  keys        ProductKey[]
+  orders      Order[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([name])
+  @@index([price])
+  @@index([stock])
+  @@index([storeId])
+  @@index([categoryId])
+  @@index([autoDeliver])
+  @@index([createdAt])
+}
+
+model ProductKey {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  isSold    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@index([isSold])
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  product     Product     @relation(fields: [productId], references: [id])
+  productId   String
+  status      OrderStatus @default(PENDING)
+  payment     Payment?
+  promoCode   PromoCode?  @relation("OrderPromoCode", fields: [promoCodeId], references: [id])
+  promoCodeId String?
+  disputes    Dispute[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([productId])
+  @@index([status])
+  @@index([promoCodeId])
+  @@index([createdAt])
+}
+
+model Payment {
+  id        String        @id @default(uuid())
+  order     Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   String        @unique
+  amount    Float
+  method    PaymentMethod
+  status    PaymentStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([method])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Referral {
+  id             String   @id @default(uuid())
+  referredBy     User     @relation("ReferrerUser", fields: [referredById], references: [id], onDelete: Cascade)
+  referredById   String
+  referredUser   User     @relation("ReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
+  referredUserId String
+  rewardAmount   Float    @default(0.0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([referredById])
+  @@index([referredUserId])
+  @@index([rewardAmount])
+  @@index([createdAt])
+}
+
+model PromoCode {
+  id         String    @id @default(uuid())
+  code       String    @unique
+  discount   Float
+  expiresAt  DateTime
+  usedBy     Order[]   @relation("OrderPromoCode")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  isActive   Boolean   @default(true)
+
+  @@index([code])
+  @@index([expiresAt])
+  @@index([discount])
+  @@index([isActive])
+}
+
+model Dispute {
+  id         String        @id @default(uuid())
+  order      Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId    String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  status     DisputeStatus @default(PENDING)
+  reason     String
+  resolution String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
