@@ -1,0 +1,19 @@
+meta {
+  name: CreateStore
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://localhost:3000/stores
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "name": "Tech Store",
+    "ownerId": "b96a7eaa-6e4c-4509-a21a-0aeaab7d2b1f"
+  }
+  
+}

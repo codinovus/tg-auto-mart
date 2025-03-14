@@ -1,7 +1,5 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import * as TelegramBot from 'node-telegram-bot-api';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/shared/prisma/prisma.service';
-
 import { PaginationMeta } from 'src/shared/model/GenericResponse.dto';
 import {
   GetUserByIdResponseDto,
@@ -12,51 +10,21 @@ import {
 } from './model/user.model';
 
 @Injectable()
-export class UserService implements OnModuleInit {
-  private bot: TelegramBot;
-
-  constructor(private prisma: PrismaService) {
-    const botToken = process.env.TELEGRAM_BOT_TOKEN as string;
-
-    if (!botToken) {
-      throw new Error(
-        'TELEGRAM_BOT_TOKEN is not defined in environment variables',
-      );
-    }
-    this.bot = new TelegramBot(botToken, { polling: true });
-  }
-
-  onModuleInit() {
-    this.listenToTelegram();
-  }
-
-  private listenToTelegram() {
-    this.bot.onText(/\/start/, async (msg) => {
-      const chatId = msg.chat.id.toString();
-      const username = msg.chat.username || `tg_user_${chatId}`;
-      let user = await this.prisma.user.findUnique({
-        where: { telegramId: chatId },
-      });
-
-      if (!user) {
-        user = await this.prisma.user.create({
-          data: {
-            username,
-            telegramId: chatId,
-            role: 'CUSTOMER',
-          },
-        });
-        this.bot.sendMessage(
-          chatId,
-          `✅ Registered successfully! Welcome, ${username}`,
-        );
-      } else {
-        this.bot.sendMessage(chatId, `👋 Welcome back, ${user.username}`);
-      }
-    });
-  }
+export class UserService {
+  constructor(private prisma: PrismaService) {}
 
   async registerUser(userData: RegisterUserModel) {
+
+    // Check if the user already exists
+    const existingUser  = await this.prisma.user.findUnique({
+      where: { telegramId: userData.telegramId },
+    });
+
+    if (existingUser ) {
+      // Optionally, you can return the existing user or throw an error
+      return existingUser ; // or throw new ConflictException('User  already registered');
+    }
+
     return this.prisma.$transaction(async (prisma) => {
       const user = await prisma.user.create({
         data: {
@@ -243,5 +211,30 @@ export class UserService implements OnModuleInit {
     await this.prisma.user.delete({ where: { id: userId } });
   
     return { success: true, message: `User with ID ${userId} has been deleted successfully` };
-  }  
+  } 
+  
+  async getUserByTelegramId(telegramId: string): Promise<UserResponseDto> {
+    const user = await this.prisma.user.findUnique({
+      where: { telegramId },
+      include: {
+        wallet: true,
+        orders: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User  with Telegram ID ${telegramId} not found`);
+    }
+
+    return {
+      id: user.id,
+      username: user.username || undefined,
+      telegramId: user.telegramId || undefined,
+      role: user.role,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      balance: user.wallet ? user.wallet.balance : 0,
+      orderCount: user.orders.length,
+    };
+  }
 }

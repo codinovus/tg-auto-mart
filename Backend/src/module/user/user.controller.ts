@@ -68,5 +68,11 @@ export class UserController {
   async deleteUser(@Param('id') userId: string): Promise<{ success: boolean; message: string }> {
     return this.userService.deleteUser(userId);
   }  
+
+  @Get('telegram/:telegramId')
+  async getUserByTelegramId(@Param('telegramId') telegramId: string): Promise<GetUserByIdResponseDto> {
+    const user = await this.userService.getUserByTelegramId(telegramId);
+    return new GetUserByIdResponseDto(true, 'User  retrieved successfully', user);
+  }
   
 }
