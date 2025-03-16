@@ -5,9 +5,11 @@ import { ProductCategoryService } from '../product-category/product-category.ser
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from 'src/shared/prisma/prisma.module';
 import { ProductService } from '../product/product.service';
+import { ReferralService } from '../referral/referral.service';
+import { CryptoWalletService } from '../crypto-wallet/crypto-wallet.service';
 
 @Module({
   imports: [ConfigModule, PrismaModule],
-  providers: [TelegramService, UserService, ProductCategoryService, ProductService],
+  providers: [TelegramService,CryptoWalletService, UserService, ProductCategoryService, ProductService, ReferralService],
 })
 export class TelegramModule {}

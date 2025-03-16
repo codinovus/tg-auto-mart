@@ -1,7 +1,7 @@
 import { PaginationMeta } from "src/shared/model/GenericResponse.dto";
 import { Role } from '@prisma/client';
-import { CryptoWalletResponseDto } from "src/module/cryptowallet/model/cryptowallet.model";
 import { WalletResponseDto } from "src/module/wallet/model/wallet.model";
+import { CryptoWalletResponseDto } from "src/module/crypto-wallet/model/crypto-wallet.dto";
 
 export class UserResponseDto {
     id: string | number;

@@ -155,6 +155,8 @@ export class UserService {
         address: wallet.address,
         type: wallet.type,
         createdAt: wallet.createdAt,
+        updatedAt: wallet.updatedAt,
+        userId: wallet.userId,
       })),
     };
   }
