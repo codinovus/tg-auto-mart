@@ -1,4 +1,6 @@
 import { IsNotEmpty, IsOptional, IsString, IsNumber } from 'class-validator';
+import { TransactionResponseDto } from 'src/module/transaction/model/transaction.dto';
+
 
 export class CreateWalletDto {
   @IsString()
@@ -15,18 +17,29 @@ export class UpdateWalletDto {
 export class WalletResponseDto {
   id: string;
   balance: number;
-  userId?: string;
+  userId: string;
   createdAt: Date;
-  updatedAt?: Date;
+  updatedAt: Date;
   username?: string | null;
   telegramId?: string | null;
+  transactions?: TransactionResponseDto[];
 
-  constructor(id: string, balance: number, userId: string, createdAt: Date, updatedAt: Date, username?: string | null, telegramId?: string | null) {
+  constructor(
+    id: string,
+    balance: number,
+    userId: string,
+    createdAt: Date,
+    updatedAt: Date,
+    transactions?: TransactionResponseDto[],
+    username?: string | null,
+    telegramId?: string | null,
+  ) {
     this.id = id;
     this.balance = balance;
     this.userId = userId;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
+    this.transactions = transactions;
     this.username = username;
     this.telegramId = telegramId;
   }

@@ -14,6 +14,7 @@ import { ReferralService } from '../referral/referral.service';
 import { CryptoWalletService } from '../crypto-wallet/crypto-wallet.service';
 import { CryptoType } from '@prisma/client';
 import { WalletService } from '../wallet/wallet.service';
+import { OrderService } from '../order/order.service';
 
 @Injectable()
 export class TelegramService implements OnModuleInit {
@@ -34,6 +35,7 @@ export class TelegramService implements OnModuleInit {
     private productCategoryService: ProductCategoryService,
     private productService: ProductService,
     private walletservice: WalletService,
+    private orderservice: OrderService,
     private readonly cryptowalletService: CryptoWalletService,
   ) {
     this.bot = new TelegramBot(this.configService.get('TELEGRAM_BOT_TOKEN'), {
@@ -75,6 +77,70 @@ export class TelegramService implements OnModuleInit {
         const parts = data.split('_');
         const type = parts[2] as CryptoType;
         await this.handleWalletAddressInput(chatId, telegramId, type);
+      }
+    });
+
+    this.bot.on('callback_query', async (query) => {
+      if (query.data.startsWith('product_') && !query.data.includes('page')) {
+        const productId = query.data.split('_')[1];
+        const product = await this.productService.getProductById(productId);
+        
+        if (product) {
+          const categoryId = product.categoryId;
+          const page = this.currentPage.get(query.message.chat.id) || 1;
+          
+          const message = `
+            📦 *Product Name:* 
+            ${product.name}
+  
+            💲 *Price:* $${product.price.toFixed(2)} 
+  
+            🚚 *Auto Delivery:* ${product.autoDeliver ? 'Yes' : 'No'}
+  
+            📦 *Quantity in Stock:* ${product.stock}
+          `;
+  
+          const buyNowButton = {
+            text: '🛒 Buy Now',
+            callback_data: `buy_${product.id}`,
+          };
+  
+          const goBackButton = {
+            text: '🔙 Go Back',
+            callback_data: `back_to_products_${categoryId}_${page}`,
+          };
+  
+          await this.bot.sendMessage(query.message.chat.id, message, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [[buyNowButton], [goBackButton]],
+            },
+          });
+        }
+        this.bot.answerCallbackQuery(query.id);
+      }
+    });
+
+    this.bot.on('callback_query', async (query) => {
+      if (query.data.startsWith('back_to_products_')) {
+        const parts = query.data.split('_');
+        const categoryId = parts[3];
+        const page = parseInt(parts[4], 10);
+        
+        await this.sendProductsByCategory(
+          query.message.chat.id,
+          categoryId,
+          page,
+        );
+        this.bot.answerCallbackQuery(query.id);
+      }
+    });
+
+    this.bot.on('callback_query', async (query ) => {
+      if (query.data.startsWith('buy_')) {
+        const productId = query.data.split('_')[1];
+        await this.handleBuyProduct(query.message.chat.id, query.from.id.toString(), productId);
+        this.bot.answerCallbackQuery(query.id, { text: "Processing your order..." });
       }
     });
   }
@@ -121,6 +187,93 @@ export class TelegramService implements OnModuleInit {
         },
       },
     );
+  }
+
+  private async handleBuyProduct(chatId: number, telegramId: string, productId: string) {
+    try {
+      // Get the user by telegramId
+      const user = await this.userService.getUserByTelegramId(telegramId);
+      
+      if (!user) {
+        return this.bot.sendMessage(chatId, '❌ User not found. Please start again with /start');
+      }
+      
+      // Get the product details
+      const product = await this.productService.getProductById(productId);
+      
+      if (!product) {
+        return this.bot.sendMessage(chatId, '❌ Product not found or no longer available.');
+      }
+      
+      // Check if product is in stock
+      if (product.stock <= 0) {
+        return this.bot.sendMessage(chatId, '❌ Sorry, this product is out of stock.');
+      }
+      
+      // Get user's wallet and check balance
+      const userWallet = await this.walletservice.getWalletByTelegramId(telegramId);
+      
+      if (userWallet.balance < product.price) {
+        return this.bot.sendMessage(
+          chatId, 
+          `❌ Insufficient balance. You need $${product.price.toFixed(2)} but have only $${userWallet.balance.toFixed(2)}.`,
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '💰 Add Balance', callback_data: `add_balance_${telegramId}` }]
+              ]
+            }
+          }
+        );
+      }
+      
+      // Create the order
+      const order = await this.orderservice.createOrder({
+        userId: String(user.id),
+        productId: productId,
+        quantity: 1,
+      });
+      
+      await this.walletservice.updateWalletByUserId(String(user.id), {
+        balance: userWallet.balance - order.total
+      });
+      
+      // Create a payment for the order
+      const payment = await this.prisma.payment.create({
+        data: {
+          orderId: order.id,
+          amount: order.total,
+          method: 'WALLET',
+          status: 'SUCCESS'
+        }
+      });
+      
+      // Update the order status
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: { status: 'COMPLETED' }
+      });
+      
+      // Create transaction record
+      await this.prisma.transaction.create({
+        data: {
+          walletId: String(userWallet.id),
+          userId: String(user.id),
+          amount: order.total,
+          type: 'PURCHASE',
+          status: 'SUCCESS',
+          description: `Purchase of ${product.name}`,
+          orderId: String( order.id)
+        }
+      });
+      
+      // Notify the user of the successful purchase
+      this.bot.sendMessage(chatId, `✅ Purchase successful! You bought ${product.name} for $${order.total.toFixed(2)}.`);
+      
+    } catch (error) {
+      console.error('Error handling purchase:', error);
+      this.bot.sendMessage(chatId, '❌ An error occurred while processing your purchase. Please try again later.');
+    }
   }
 
   private async handleReferralResponse(
@@ -186,7 +339,7 @@ export class TelegramService implements OnModuleInit {
           );
         }
         await this.referralService.createReferral({
-          referredById: String(referrer.id),
+            referredById: String(referrer.id),
           referredUserId: userId,
           rewardAmount: 10,
         });
@@ -368,18 +521,18 @@ export class TelegramService implements OnModuleInit {
         page,
         5,
       );
-
+  
       if (!response.data.length) {
         return this.bot.sendMessage(chatId, '❌ No products in this category.');
       }
-
+  
       const buttons = response.data.map((product) => [
         {
           text: product.name,
           callback_data: `product_${product.id}`,
         },
       ]);
-
+  
       if (page > 1 || page < response.pagination.totalPages) {
         buttons.push([
           ...(page > 1
@@ -400,56 +553,10 @@ export class TelegramService implements OnModuleInit {
             : []),
         ]);
       }
-
+  
       await this.bot.sendMessage(chatId, `🛒 *Products - Page ${page}*`, {
         parse_mode: 'Markdown',
         reply_markup: { inline_keyboard: buttons },
-      });
-
-      this.bot.on('callback_query', async (query) => {
-        const productId = query.data.split('_')[1];
-        const product = response.data.find((p) => p.id === productId);
-
-        if (product) {
-          const message = `
-            📦 *Product Name:* 
-            ${product.name}
-
-            💲 *Price:* $${product.price.toFixed(2)} 
-
-            🚚 *Auto Delivery:* ${product.autoDeliver}
-
-            📦 *Quantity in Stock:* ${product.stock}
-          `;
-
-          const buyNowButton = {
-            text: '🛒 Buy Now',
-            callback_data: `buy_${product.id}`,
-          };
-
-          const goBackButton = {
-            text: '🔙 Go Back',
-            callback_data: `back_to_products_${categoryId}_${page}`,
-          };
-
-          await this.bot.sendMessage(query.message.chat.id, message, {
-            parse_mode: 'Markdown',
-            reply_markup: {
-              inline_keyboard: [[buyNowButton], [goBackButton]],
-            },
-          });
-        }
-        this.bot.answerCallbackQuery(query.id);
-      });
-
-      this.bot.on('callback_query', async (query) => {
-        if (query.data.startsWith('back_to_products_')) {
-          await this.sendProductsByCategory(
-            query.message.chat.id,
-            categoryId,
-            page,
-          );
-        }
       });
     } catch (error) {
       this.bot.sendMessage(chatId, '❌ Error fetching products.');

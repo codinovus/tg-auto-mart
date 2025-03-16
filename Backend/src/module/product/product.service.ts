@@ -201,6 +201,38 @@ import {
           }
         );
       }
+
+      async updateProductStock(productId: string, change: number): Promise<ProductResponseDto> {
+        const product = await this.prisma.product.findUnique({
+          where: { id: productId },
+        });
+      
+        if (!product) {
+          throw new NotFoundException(`Product with ID ${productId} not found`);
+        }
+      
+        // Calculate new stock level
+        const newStock = Math.max(0, product.stock + change);
+      
+        // Update product stock
+        const updatedProduct = await this.prisma.product.update({
+          where: { id: productId },
+          data: { stock: newStock },
+        });
+      
+        return {
+          id: updatedProduct.id,
+          name: updatedProduct.name,
+          description: updatedProduct.description,
+          price: updatedProduct.price,
+          stock: updatedProduct.stock,
+          storeId: updatedProduct.storeId,
+          categoryId: updatedProduct.categoryId,
+          autoDeliver: updatedProduct.autoDeliver,
+          createdAt: updatedProduct.createdAt,
+          updatedAt: updatedProduct.updatedAt,
+        };
+      }
       
   }
   

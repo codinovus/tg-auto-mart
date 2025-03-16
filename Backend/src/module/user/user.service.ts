@@ -129,11 +129,11 @@ export class UserService {
         cryptoWallets: true,
       },
     });
-
+  
     if (!user) {
       throw new Error('User not found');
     }
-
+  
     return {
       id: user.id,
       username: user.username ?? 'Guest',
@@ -146,10 +146,12 @@ export class UserService {
             id: user.wallet.id,
             balance: user.wallet.balance,
             createdAt: user.wallet.createdAt,
+            updatedAt: user.wallet.updatedAt, // ✅ Ensure this field exists
+            userId: user.wallet.userId, // ✅ Ensure this field exists
           }
         : undefined,
-      orderCount: user.orders.length,
-      disputeCount: user.disputes.length,
+      orderCount: user.orders.length ?? 0,
+      disputeCount: user.disputes.length ?? 0,
       cryptoWallets: user.cryptoWallets?.map((wallet) => ({
         id: wallet.id,
         address: wallet.address,
@@ -160,6 +162,7 @@ export class UserService {
       })),
     };
   }
+  
 
   async updateUser(
     userId: string,

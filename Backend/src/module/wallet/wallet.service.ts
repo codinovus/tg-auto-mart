@@ -196,4 +196,32 @@ export class WalletService {
       telegramId: wallet.user?.telegramId || null,
     };
   }
+
+  async updateWalletByUserId(userId: string, updateData: UpdateWalletDto): Promise<WalletResponseDto> {
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { userId },
+      include: {
+        user: true,
+      },
+    });
+  
+    if (!wallet) {
+      throw new NotFoundException(`Wallet for user with ID ${userId} not found`);
+    }
+  
+    const updatedWallet = await this.prisma.wallet.update({
+      where: { id: wallet.id },
+      data: updateData,
+    });
+  
+    return {
+      id: updatedWallet.id,
+      balance: updatedWallet.balance,
+      userId: updatedWallet.userId,
+      createdAt: updatedWallet.createdAt,
+      updatedAt: updatedWallet.updatedAt,
+      username: wallet.user?.username || null,
+      telegramId: wallet.user?.telegramId || null,
+    };
+  }
 }

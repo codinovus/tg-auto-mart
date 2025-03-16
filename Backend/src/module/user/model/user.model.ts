@@ -2,6 +2,12 @@ import { PaginationMeta } from "src/shared/model/GenericResponse.dto";
 import { Role } from '@prisma/client';
 import { WalletResponseDto } from "src/module/wallet/model/wallet.model";
 import { CryptoWalletResponseDto } from "src/module/crypto-wallet/model/crypto-wallet.dto";
+import { ReferralResponseDto } from "src/module/referral/model/referral.dto";
+import { StoreResponseDto } from "src/module/store/model/store.dto";
+import { DepositRequestResponseDto } from "src/module/deposit-request/model/deposit-request.dto";
+import { DisputeResponseDto } from "src/module/dispute/model/dispute.dto";
+import { OrderResponseDto } from "src/module/order/model/order.dto";
+import { TransactionResponseDto } from "src/module/transaction/model/transaction.dto";
 
 export class UserResponseDto {
     id: string | number;
@@ -10,59 +16,63 @@ export class UserResponseDto {
     role: string;
     createdAt: Date;
     updatedAt: Date;
+    wallet?: WalletResponseDto;
+    orders?: OrderResponseDto[];
     balance: number;
     orderCount: number;
-  }
+    disputeCount?: number;
+    storeCount?: number;
+    cryptoWallets?: CryptoWalletResponseDto[];
+}
 
 export class GetAllUsersResponseDto {
-  success: boolean;
-  message: string;
-  data: UserResponseDto[];
-  pagination?: PaginationMeta;
-  timestamp: string;
+    success: boolean;
+    message: string;
+    data: UserResponseDto[];
+    pagination?: PaginationMeta;
+    timestamp: string;
 
-  constructor(
-    success: boolean,
-    message: string,
-    data: UserResponseDto[],
-    pagination?: PaginationMeta
-  ) {
-    this.success = success;
-    this.message = message;
-    this.data = data;
-    this.pagination = pagination;
-    this.timestamp = new Date().toISOString();
-  }
+    constructor(
+        success: boolean,
+        message: string,
+        data: UserResponseDto[],
+        pagination?: PaginationMeta
+    ) {
+        this.success = success;
+        this.message = message;
+        this.data = data;
+        this.pagination = pagination;
+        this.timestamp = new Date().toISOString();
+    }
 }
 
 export class GetUserByIdResponseDto {
-  success: boolean;
-  message: string;
-  data: UserResponseDto;
-  timestamp: string;
+    success: boolean;
+    message: string;
+    data: UserResponseDto;
+    timestamp: string;
 
-  constructor(success: boolean, message: string, data: UserResponseDto) {
-    this.success = success;
-    this.message = message;
-    this.data = data;
-    this.timestamp = new Date().toISOString();
-  }
+    constructor(success: boolean, message: string, data: UserResponseDto) {
+        this.success = success;
+        this.message = message;
+        this.data = data;
+        this.timestamp = new Date().toISOString();
+    }
 }
 
 export class RegisterUserModel {
-  username: string;
-  password?: string;
-  telegramId?: string;
-  role?: Role;
+    username: string;
+    password?: string;
+    telegramId?: string;
+    role?: Role;
 }
 
 export class UpdateUserDto {
-  username?: string;
-  password?: string;
-  telegramId?: string;
-  role?: Role;
+    username?: string;
+    password?: string;
+    telegramId?: string;
+    role?: Role;
 }
-
 
 export class UserProfileDto {
     id: string | number;
@@ -72,8 +82,15 @@ export class UserProfileDto {
     createdAt: Date;
     updatedAt: Date;
     wallet?: WalletResponseDto;
-    storeCount?: number;
+    cryptoWallets?: CryptoWalletResponseDto[];
+    referrals?: ReferralResponseDto[];
+    referredBy?: ReferralResponseDto[];
+    store?: StoreResponseDto;
+    orders?: OrderResponseDto[];
+    disputes?: DisputeResponseDto[];
+    transactions?: TransactionResponseDto[];
+    depositRequests?: DepositRequestResponseDto[];
     orderCount?: number;
     disputeCount?: number;
-    cryptoWallets?: CryptoWalletResponseDto[];
-  }
+    storeCount?: number;
+}
