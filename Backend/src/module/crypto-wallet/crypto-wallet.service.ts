@@ -127,29 +127,16 @@ import {
     }
 
     async getAllCryptoWalletsByUserIdentifier(
-      identifier: string,
+      userId: string, // Change parameter name to userId
       page: number,
       limit: number,
     ): Promise<GetAllCryptoWalletsResponseDto> {
-      let userId = identifier;
-      if (identifier.startsWith('tg-')) {
-        const user = await this.prisma.user.findUnique({
-          where: { telegramId: identifier },
-        });
-    
-        if (!user) {
-          throw new NotFoundException(`User with Telegram ID ${identifier} not found`);
-        }
-    
-        userId = user.id;
-      }
-    
       const totalItems = await this.prisma.cryptoWallet.count({
         where: { userId },
       });
     
       if (totalItems === 0) {
-        throw new NotFoundException(`No wallets found for identifier ${identifier}`);
+        throw new NotFoundException(`No wallets found for user ID ${userId}`);
       }
     
       const wallets = await this.prisma.cryptoWallet.findMany({
@@ -160,7 +147,7 @@ import {
     
       return {
         success: true,
-        message: `Crypto wallets for identifier ${identifier} fetched successfully`,
+        message: `Crypto wallets for user ID ${userId} fetched successfully`,
         data: wallets,
         pagination: {
           totalItems,

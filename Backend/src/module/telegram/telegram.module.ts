@@ -7,9 +7,18 @@ import { PrismaModule } from 'src/shared/prisma/prisma.module';
 import { ProductService } from '../product/product.service';
 import { ReferralService } from '../referral/referral.service';
 import { CryptoWalletService } from '../crypto-wallet/crypto-wallet.service';
+import { WalletService } from '../wallet/wallet.service';
 
 @Module({
   imports: [ConfigModule, PrismaModule],
-  providers: [TelegramService,CryptoWalletService, UserService, ProductCategoryService, ProductService, ReferralService],
+  providers: [
+    TelegramService,
+    WalletService,
+    CryptoWalletService,
+    UserService,
+    ProductCategoryService,
+    ProductService,
+    ReferralService,
+  ],
 })
 export class TelegramModule {}

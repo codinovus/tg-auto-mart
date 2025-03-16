@@ -54,6 +54,14 @@ enum CryptoType {
   DOT
 }
 
+enum TransactionType {
+  DEPOSIT
+  PURCHASE
+  REFUND
+  REFERRAL_REWARD
+  ADMIN_ADJUSTMENT
+}
+
 model User {
   id            String         @id @default(uuid())
   telegramId    String?        @unique
@@ -74,6 +82,8 @@ model User {
   @@index([username])
   @@index([role])
   @@index([createdAt])
+  Transaction Transaction[]
+  DepositRequest DepositRequest[]
 }
 
 model CryptoWallet {
@@ -91,14 +101,78 @@ model CryptoWallet {
 }
 
 model Wallet {
-  id        String   @id @default(uuid())
-  balance   Float    @default(0.0)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String        @id @default(uuid())
+  balance      Float         @default(0.0)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String        @unique
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([balance])
+}
+
+model Transaction {
+  id            String          @id @default(uuid())
+  wallet        Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  walletId      String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  amount        Float
+  type          TransactionType
+  status        PaymentStatus   @default(PENDING)
+  description   String?
+  order         Order?          @relation(fields: [orderId], references: [id])
+  orderId       String?
+  depositRequest DepositRequest? @relation(fields: [depositRequestId], references: [id])
+  depositRequestId String?
+  referenceId   String?         // External reference ID if needed
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([walletId])
+  @@index([userId])
+  @@index([status])
+  @@index([orderId])
+  @@index([depositRequestId])
+}
+
+model DepositRequest {
+  id            String          @id @default(uuid())
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  amount        Float
+  paymentLink   String          @unique
+  status        PaymentStatus   @default(PENDING)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  Transaction Transaction[]
+  GatewayTransaction GatewayTransaction[]
+}
+
+model PaymentGateway {
+  id            String          @id @default(uuid())
+  name          String
+  type          String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model GatewayTransaction {
+  id                String          @id @default(uuid())
+  depositRequest    DepositRequest   @relation(fields: [depositRequestId], references: [id], onDelete: Cascade)
+  depositRequestId  String
+  amount            Float
+  status            PaymentStatus
+  transactionId     String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([depositRequestId])
+  @@index([status])
 }
 
 model Store {
@@ -163,24 +237,28 @@ model ProductKey {
 }
 
 model Order {
-  id          String      @id @default(uuid())
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId      String
-  product     Product     @relation(fields: [productId], references: [id])
-  productId   String
-  status      OrderStatus @default(PENDING)
-  payment     Payment?
-  promoCode   PromoCode?  @relation("OrderPromoCode", fields: [promoCodeId], references: [id])
-  promoCodeId String?
-  disputes    Dispute[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id            String      @id @default(uuid())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  product       Product     @relation(fields: [productId], references: [id])
+  productId     String
+  quantity      Int         @default(1)
+  total         Float
+  discountAmount Float?
+  status        OrderStatus @default(PENDING)
+  payment       Payment?
+  promoCode     PromoCode?  @relation("OrderPromoCode", fields: [promoCodeId], references: [id])
+  promoCodeId   String?
+  disputes      Dispute[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   @@index([userId])
   @@index([productId])
   @@index([status])
   @@index([promoCodeId])
   @@index([createdAt])
+  Transaction Transaction[]
 }
 
 model Payment {

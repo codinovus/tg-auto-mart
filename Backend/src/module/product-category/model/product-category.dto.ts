@@ -1,28 +1,33 @@
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
-// DTO for creating a product category
 export class CreateProductCategoryDto {
   @IsString()
   @IsNotEmpty()
   name: string;
 }
 
-// DTO for updating a product category
 export class UpdateProductCategoryDto {
   @IsString()
   @IsOptional()
   name?: string;
 }
 
-// DTO for individual product category response
 export class ProductCategoryResponseDto {
   id: string;
   name: string;
   createdAt: Date;
   updatedAt: Date;
+  productCount?: number;
+
+  constructor(id: string, name: string, createdAt: Date, updatedAt: Date, productCount: number) {
+    this.id = id;
+    this.name = name;
+    this.createdAt = createdAt;
+    this.updatedAt = updatedAt;
+    this.productCount = productCount;
+  }
 }
 
-// DTO for paginated response of product categories
 export class GetAllProductCategoriesResponseDto {
   success: boolean;
   message: string;

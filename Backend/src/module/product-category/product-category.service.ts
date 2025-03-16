@@ -48,22 +48,28 @@ import {
       const totalItems = await this.prisma.productCategory.count({
         where: { name: { contains: searchQuery, mode: 'insensitive' } },
       });
-  
+    
       const categories = await this.prisma.productCategory.findMany({
         where: { name: { contains: searchQuery, mode: 'insensitive' } },
         skip: (page - 1) * limit,
         take: limit,
       });
-  
-      const categoryResponseDtos: ProductCategoryResponseDto[] = categories.map(
-        (category) => ({
-          id: category.id,
-          name: category.name,
-          createdAt: category.createdAt,
-          updatedAt: category.updatedAt,
+      const categoryResponseDtos: ProductCategoryResponseDto[] = await Promise.all(
+        categories.map(async (category) => {
+          const productCount = await this.prisma.product.count({
+            where: { categoryId: category.id },
+          });
+    
+          return new ProductCategoryResponseDto(
+            category.id,
+            category.name,
+            category.createdAt,
+            category.updatedAt,
+            productCount
+          );
         }),
       );
-  
+    
       const totalPages = Math.ceil(totalItems / limit);
       return new GetAllProductCategoriesResponseDto(
         true,

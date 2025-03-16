@@ -10,9 +10,11 @@ import { ConfigModule } from '@nestjs/config';
 import { ProductModule } from './module/product/product.module';
 import { ProductKeyModule } from './module/product-key/product-key.module';
 import { ReferralModule } from './module/referral/referral.module';
+import { CryptoWalletModule } from './module/crypto-wallet/crypto-wallet.module';
+import { WalletModule } from './module/wallet/wallet.module';
 
 @Module({
-  imports: [ConfigModule.forRoot(), ReferralModule, ProductKeyModule, ProductModule, UserModule, StoreModule, ProductCategoryModule, TelegramModule, PrismaModule],
+  imports: [ConfigModule.forRoot(),CryptoWalletModule, WalletModule, ReferralModule, ProductKeyModule, ProductModule, UserModule, StoreModule, ProductCategoryModule, TelegramModule, PrismaModule],
   controllers: [AppController],
   providers: [AppService],
 })
