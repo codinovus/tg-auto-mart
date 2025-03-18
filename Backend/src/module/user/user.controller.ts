@@ -21,7 +21,6 @@ export class UserController {
   async getAllUsers(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
-    @Query('search') search?: string,
   ): Promise<GetAllUsersResponseDto> {
     const pageNumber = parseInt(page, 10);
     const limitNumber = parseInt(limit, 10);
@@ -29,7 +28,6 @@ export class UserController {
     const { users, pagination } = await this.userService.getUsers(
       pageNumber,
       limitNumber,
-      search,
     );
 
     return new GetAllUsersResponseDto(

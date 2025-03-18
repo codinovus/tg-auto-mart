@@ -22,7 +22,7 @@ export class DepositRequestService {
       },
       include: { 
         user: true, 
-        Transaction: true // Fixed relation name
+        Transaction: true 
       },
     });
 
@@ -37,7 +37,7 @@ export class DepositRequestService {
       take: limit,
       include: { 
         user: true, 
-        Transaction: true // Fixed relation name
+        Transaction: true 
       },
     });
 
@@ -61,7 +61,7 @@ export class DepositRequestService {
       where: { id },
       include: { 
         user: true, 
-        Transaction: true // Fixed relation name
+        Transaction: true 
       },
     });
 
@@ -86,7 +86,7 @@ export class DepositRequestService {
       data: updateDto,
       include: { 
         user: true, 
-        Transaction: true // Fixed relation name
+        Transaction: true 
       },
     });
 
@@ -120,7 +120,7 @@ export class DepositRequestService {
             username: depositRequest.user.username,
             telegramId: depositRequest.user.telegramId,
           }
-        : ({} as any), // Fixed nullability issue
+        : ({} as any),
       transactions: depositRequest.Transaction.map((transaction) => ({
         id: transaction.id,
         amount: transaction.amount,

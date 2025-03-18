@@ -32,9 +32,8 @@ import {
     async getAllCategories(
       @Query('page') page = 1,
       @Query('limit') limit = 10,
-      @Query('searchQuery') searchQuery = '',
     ): Promise<GetAllProductCategoriesResponseDto> {
-      return this.productCategoryService.getAllProductCategories(page, limit, searchQuery);
+      return this.productCategoryService.getAllProductCategories(page, limit);
     }
   
     @Get(':id')

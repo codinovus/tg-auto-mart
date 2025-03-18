@@ -1,6 +1,21 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { StoreService } from './store.service';
-import { CreateStoreDto, StoreResponseDto, UpdateStoreDto } from './model/store.dto';
+import {
+  CreateStoreDto,
+  StoreResponseDto,
+  UpdateStoreDto,
+} from './model/store.dto';
 
 @Controller('stores')
 export class StoreController {
@@ -9,12 +24,19 @@ export class StoreController {
   @Post()
   async createStore(@Body() createStoreDto: CreateStoreDto) {
     const store = await this.storeService.createStore(createStoreDto);
-    return { success: true, message: 'Store created successfully', data: store };
+    return {
+      success: true,
+      message: 'Store created successfully',
+      data: store,
+    };
   }
 
   @Get()
-  async getAllStores(@Query('page') page = 1, @Query('limit') limit = 10, @Query('searchQuery') searchQuery = '') {
-    return this.storeService.getAllStores(page, limit, searchQuery);
+  async getAllStores(
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+  ) {
+    return this.storeService.getAllStores(page, limit);
   }
 
   @Get(':id')
@@ -25,7 +47,7 @@ export class StoreController {
   @Put(':id')
   async updateStore(
     @Param('id') storeId: string,
-    @Body() updateStoreDto: UpdateStoreDto
+    @Body() updateStoreDto: UpdateStoreDto,
   ): Promise<StoreResponseDto> {
     return this.storeService.updateStoreById(storeId, updateStoreDto);
   }

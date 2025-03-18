@@ -12,6 +12,7 @@ import {
 export class OrderService {
   constructor(private prisma: PrismaService) {}
 
+  // Create Methods
   async createOrder(createOrderDto: CreateOrderDto): Promise<OrderResponseDto> {
     const { userId, productId, quantity = 1, promoCodeId } = createOrderDto;
     const product = await this.prisma.product.findUnique({
@@ -22,10 +23,8 @@ export class OrderService {
       throw new NotFoundException(`Product with ID ${productId} not found`);
     }
 
-    // Calculate the total price
     const total = product.price * quantity;
 
-    // Apply promo code discount if available
     let discountAmount = 0;
     if (promoCodeId) {
       const promoCode = await this.prisma.promoCode.findUnique({
@@ -38,38 +37,39 @@ export class OrderService {
     }
 
     const order = await this.prisma.order.create({
-      data: { 
-        userId, 
-        productId, 
-        quantity, 
-        promoCodeId, 
-        total, 
-        discountAmount: discountAmount > 0 ? discountAmount : undefined 
+      data: {
+        userId,
+        productId,
+        quantity,
+        promoCodeId,
+        total,
+        discountAmount: discountAmount > 0 ? discountAmount : 0,
       },
-      include: { 
-        product: true, 
-        payment: true, 
-        promoCode: true, 
-        disputes: true, 
-        Transaction: true 
+      include: {
+        product: true,
+        payment: true,
+        promoCode: true,
+        disputes: true,
+        Transaction: true,
       },
     });
 
     return this.mapToOrderResponseDto(order);
   }
 
+  // Get Methods
   async getAllOrders(page: number, limit: number): Promise<GetAllOrdersResponseDto> {
     const totalItems = await this.prisma.order.count();
 
     const orders = await this.prisma.order.findMany({
       skip: (page - 1) * limit,
       take: limit,
-      include: { 
-        product: true, 
-        payment: true, 
-        promoCode: true, 
-        disputes: true, 
-        Transaction: true 
+      include: {
+        product: true,
+        payment: true,
+        promoCode: true,
+        disputes: true,
+        Transaction: true,
       },
     });
 
@@ -77,11 +77,11 @@ export class OrderService {
       true,
       'Orders fetched successfully',
       orders.map((order) => this.mapToOrderResponseDto(order)),
-      { 
-        totalItems, 
-        totalPages: Math.ceil(totalItems / limit), 
-        currentPage: page, 
-        perPage: limit 
+      {
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: page,
+        perPage: limit,
       },
     );
   }
@@ -93,12 +93,12 @@ export class OrderService {
       where: { userId },
       skip: (page - 1) * limit,
       take: limit,
-      include: { 
-        product: true, 
-        payment: true, 
-        promoCode: true, 
-        disputes: true, 
-        Transaction: true 
+      include: {
+        product: true,
+        payment: true,
+        promoCode: true,
+        disputes: true,
+        Transaction: true,
       },
     });
 
@@ -106,11 +106,11 @@ export class OrderService {
       true,
       'Orders fetched successfully',
       orders.map((order) => this.mapToOrderResponseDto(order)),
-      { 
-        totalItems, 
-        totalPages: Math.ceil(totalItems / limit), 
-        currentPage: page, 
-        perPage: limit 
+      {
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: page,
+        perPage: limit,
       },
     );
   }
@@ -124,12 +124,12 @@ export class OrderService {
       where: { user: { telegramId } },
       skip: (page - 1) * limit,
       take: limit,
-      include: { 
-        product: true, 
-        payment: true, 
-        promoCode: true, 
-        disputes: true, 
-        Transaction: true 
+      include: {
+        product: true,
+        payment: true,
+        promoCode: true,
+        disputes: true,
+        Transaction: true,
       },
     });
 
@@ -137,11 +137,11 @@ export class OrderService {
       true,
       'Orders fetched successfully',
       orders.map((order) => this.mapToOrderResponseDto(order)),
-      { 
-        totalItems, 
-        totalPages: Math.ceil(totalItems / limit), 
-        currentPage: page, 
-        perPage: limit 
+      {
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: page,
+        perPage: limit,
       },
     );
   }
@@ -149,12 +149,12 @@ export class OrderService {
   async getOrderById(orderId: string): Promise<GetOrderByIdResponseDto> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: { 
-        product: true, 
-        payment: true, 
-        promoCode: true, 
-        disputes: true, 
-        Transaction: true 
+      include: {
+        product: true,
+        payment: true,
+        promoCode: true,
+        disputes: true,
+        Transaction: true,
       },
     });
 
@@ -165,6 +165,7 @@ export class OrderService {
     return new GetOrderByIdResponseDto(true, 'Order fetched successfully', this.mapToOrderResponseDto(order));
   }
 
+  // Update Methods
   async updateOrderById(orderId: string, updateData: UpdateOrderDto): Promise<OrderResponseDto> {
     const order = await this.prisma.order.findUnique({ where: { id: orderId } });
 
@@ -175,18 +176,19 @@ export class OrderService {
     const updatedOrder = await this.prisma.order.update({
       where: { id: orderId },
       data: updateData,
-      include: { 
-        product: true, 
-        payment: true, 
-        promoCode: true, 
-        disputes: true, 
-        Transaction: true 
+      include: {
+        product: true,
+        payment: true,
+        promoCode: true,
+        disputes: true,
+        Transaction: true,
       },
     });
 
     return this.mapToOrderResponseDto(updatedOrder);
   }
 
+  // Delete Methods
   async deleteOrderById(orderId: string): Promise<{ success: boolean; message: string }> {
     const order = await this.prisma.order.findUnique({ where: { id: orderId } });
 
@@ -199,6 +201,7 @@ export class OrderService {
     return { success: true, message: `Order with ID ${orderId} deleted successfully` };
   }
 
+  // Other Methods
   private mapToOrderResponseDto(order: any): OrderResponseDto {
     return {
       id: order.id,
@@ -212,7 +215,7 @@ export class OrderService {
       payment: order.payment,
       promoCode: order.promoCode,
       disputes: order.disputes,
-      transactions: order.Transaction, // Corrected to match the expected structure
+      transactions: order.Transaction,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
     };

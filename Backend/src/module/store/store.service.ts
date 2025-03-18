@@ -15,13 +15,14 @@ import {
 export class StoreService {
   constructor(private prisma: PrismaService) {}
 
+  // Create Methods
   async createStore(createStoreDto: CreateStoreDto): Promise<StoreResponseDto> {
     const { name, ownerId } = createStoreDto;
     const existingStore = await this.prisma.store.findUnique({
       where: { ownerId },
     });
     if (existingStore) {
-      throw new ConflictException('User already owns a store');
+      throw new ConflictException('User  already owns a store');
     }
 
     const store = await this.prisma.store.create({
@@ -40,17 +41,11 @@ export class StoreService {
     };
   }
 
-  async getAllStores(
-    page: number,
-    limit: number,
-    searchQuery?: string,
-  ): Promise<GetAllStoresResponseDto> {
-    const totalItems = await this.prisma.store.count({
-      where: { name: { contains: searchQuery, mode: 'insensitive' } },
-    });
+  // Get Methods
+  async getAllStores(page: number, limit: number): Promise<GetAllStoresResponseDto> {
+    const totalItems = await this.prisma.store.count();
 
     const stores = await this.prisma.store.findMany({
-      where: { name: { contains: searchQuery, mode: 'insensitive' } },
       skip: (page - 1) * limit,
       take: limit,
     });
@@ -89,6 +84,7 @@ export class StoreService {
     return store;
   }
 
+  // Update Methods
   async updateStoreById(storeId: string, updateData: UpdateStoreDto): Promise<StoreResponseDto> {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
@@ -106,6 +102,7 @@ export class StoreService {
     return updatedStore;
   }
 
+  // Delete Methods
   async deleteStoreById(storeId: string): Promise<{ success: boolean; message: string }> {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
