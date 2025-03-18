@@ -51,98 +51,11 @@ export class TelegramService implements OnModuleInit {
     this.bot.onText(/\/start/, this.handleStart.bind(this));
     this.bot.onText(/Shop/, this.handleShop.bind(this));
     this.bot.onText(/My Profile/, this.handleProfile.bind(this));
-    this.bot.on('callback_query', this.handleCallbackQuery.bind(this));
     this.bot.onText(/💰 Wallet/, this.handleUserWallet.bind(this));
+    this.bot.onText(/My Order List/, this.handleMyOrderList.bind(this));
+
     this.bot.on('message', this.handleMessage.bind(this));
-    this.bot.on('callback_query', async (query) => {
-      const chatId = query.message.chat.id;
-      const telegramId = query.data.split('_')[2];
-    
-      if (query.data.startsWith('add_balance_')) {
-        this.bot.sendMessage(chatId, 'Please enter the amount you want to add:');
-      }
-    });
-    this.bot.on('callback_query', async (query) => {
-      const chatId = query.message.chat.id;
-      const telegramId = query.from.id.toString();
-      const data = query.data;
-
-      if (data.startsWith('my_wallets_')) {
-        const parts = data.split('_');
-        const page = parseInt(parts[2], 10);
-        await this.sendUserWallets(chatId, telegramId, page);
-      } else if (data.startsWith('add_wallet_')) {
-        await this.askWalletType(chatId, telegramId);
-      } else if (data.startsWith('wallet_type_')) {
-        const parts = data.split('_');
-        const type = parts[2] as CryptoType;
-        await this.handleWalletAddressInput(chatId, telegramId, type);
-      }
-    });
-
-    this.bot.on('callback_query', async (query) => {
-      if (query.data.startsWith('product_') && !query.data.includes('page')) {
-        const productId = query.data.split('_')[1];
-        const product = await this.productService.getProductById(productId);
-        
-        if (product) {
-          const categoryId = product.categoryId;
-          const page = this.currentPage.get(query.message.chat.id) || 1;
-          
-          const message = `
-            📦 *Product Name:* 
-            ${product.name}
-  
-            💲 *Price:* $${product.price.toFixed(2)} 
-  
-            🚚 *Auto Delivery:* ${product.autoDeliver ? 'Yes' : 'No'}
-  
-            📦 *Quantity in Stock:* ${product.stock}
-          `;
-  
-          const buyNowButton = {
-            text: '🛒 Buy Now',
-            callback_data: `buy_${product.id}`,
-          };
-  
-          const goBackButton = {
-            text: '🔙 Go Back',
-            callback_data: `back_to_products_${categoryId}_${page}`,
-          };
-  
-          await this.bot.sendMessage(query.message.chat.id, message, {
-            parse_mode: 'Markdown',
-            reply_markup: {
-              inline_keyboard: [[buyNowButton], [goBackButton]],
-            },
-          });
-        }
-        this.bot.answerCallbackQuery(query.id);
-      }
-    });
-
-    this.bot.on('callback_query', async (query) => {
-      if (query.data.startsWith('back_to_products_')) {
-        const parts = query.data.split('_');
-        const categoryId = parts[3];
-        const page = parseInt(parts[4], 10);
-        
-        await this.sendProductsByCategory(
-          query.message.chat.id,
-          categoryId,
-          page,
-        );
-        this.bot.answerCallbackQuery(query.id);
-      }
-    });
-
-    this.bot.on('callback_query', async (query ) => {
-      if (query.data.startsWith('buy_')) {
-        const productId = query.data.split('_')[1];
-        await this.handleBuyProduct(query.message.chat.id, query.from.id.toString(), productId);
-        this.bot.answerCallbackQuery(query.id, { text: "Processing your order..." });
-      }
-    });
+    this.bot.on('callback_query', this.handleCallbackQuery.bind(this));
   }
 
   private async handleStart(msg: TelegramBot.Message) {
@@ -151,7 +64,7 @@ export class TelegramService implements OnModuleInit {
     const username = msg.from.username || `user_${telegramId}`;
     let isNewUser = false;
     try {
-      await this.userService.getUserByTelegramId(telegramId);
+      await this.getUserByTelegramId(telegramId);
     } catch (error) {
       isNewUser = true;
     }
@@ -180,7 +93,7 @@ export class TelegramService implements OnModuleInit {
           keyboard: [
             [{ text: '🛍️ Shop' }, { text: '👤 My Profile' }],
             [{ text: '📌 Get My Referral Code' }],
-            [{ text: '💰 Wallet' }],
+            [{ text: '💰 Wallet' }, { text: '📜 My Order List' }],
           ],
           resize_keyboard: true,
           one_time_keyboard: true,
@@ -189,91 +102,158 @@ export class TelegramService implements OnModuleInit {
     );
   }
 
-  private async handleBuyProduct(chatId: number, telegramId: string, productId: string) {
+  private async handleBuyProduct(
+    chatId: number,
+    telegramId: string,
+    productId: string,
+  ) {
     try {
-      // Get the user by telegramId
-      const user = await this.userService.getUserByTelegramId(telegramId);
-      
+      const user = await this.getUserByTelegramId(telegramId);
       if (!user) {
-        return this.bot.sendMessage(chatId, '❌ User not found. Please start again with /start');
-      }
-      
-      // Get the product details
-      const product = await this.productService.getProductById(productId);
-      
-      if (!product) {
-        return this.bot.sendMessage(chatId, '❌ Product not found or no longer available.');
-      }
-      
-      // Check if product is in stock
-      if (product.stock <= 0) {
-        return this.bot.sendMessage(chatId, '❌ Sorry, this product is out of stock.');
-      }
-      
-      // Get user's wallet and check balance
-      const userWallet = await this.walletservice.getWalletByTelegramId(telegramId);
-      
-      if (userWallet.balance < product.price) {
-        return this.bot.sendMessage(
-          chatId, 
-          `❌ Insufficient balance. You need $${product.price.toFixed(2)} but have only $${userWallet.balance.toFixed(2)}.`,
-          {
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '💰 Add Balance', callback_data: `add_balance_${telegramId}` }]
-              ]
-            }
-          }
+        return this.sendMessage(
+          chatId,
+          '❌ User not found. Please start again with /start',
         );
       }
-      
-      // Create the order
-      const order = await this.orderservice.createOrder({
-        userId: String(user.id),
-        productId: productId,
-        quantity: 1,
-      });
-      
-      await this.walletservice.updateWalletByUserId(String(user.id), {
-        balance: userWallet.balance - order.total
-      });
-      
-      // Create a payment for the order
-      const payment = await this.prisma.payment.create({
-        data: {
-          orderId: order.id,
-          amount: order.total,
-          method: 'WALLET',
-          status: 'SUCCESS'
-        }
-      });
-      
-      // Update the order status
-      await this.prisma.order.update({
-        where: { id: order.id },
-        data: { status: 'COMPLETED' }
-      });
-      
-      // Create transaction record
-      await this.prisma.transaction.create({
-        data: {
-          walletId: String(userWallet.id),
-          userId: String(user.id),
-          amount: order.total,
-          type: 'PURCHASE',
-          status: 'SUCCESS',
-          description: `Purchase of ${product.name}`,
-          orderId: String( order.id)
-        }
-      });
-      
-      // Notify the user of the successful purchase
-      this.bot.sendMessage(chatId, `✅ Purchase successful! You bought ${product.name} for $${order.total.toFixed(2)}.`);
-      
+
+      const product = await this.getProductById(productId);
+      if (!product) {
+        return this.sendMessage(
+          chatId,
+          '❌ Product not found or no longer available.',
+        );
+      }
+      if (product.stock <= 0) {
+        return this.sendMessage(
+          chatId,
+          '❌ Sorry, this product is out of stock.',
+        );
+      }
+
+      const userWallet = await this.getUserWallet(telegramId);
+      if (userWallet.balance < product.price) {
+        return this.handleInsufficientBalance(
+          chatId,
+          telegramId,
+          product.price,
+          userWallet.balance,
+        );
+      }
+
+      const order = await this.createOrder(user.id as string, productId);
+      await this.updateWalletBalance(
+        user.id as string,
+        userWallet.id,
+        order.total,
+      );
+      await this.createPayment(order.id, order.total);
+      await this.createTransaction(
+        userWallet.id,
+        user.id as string,
+        order.id,
+        order.total,
+        product.name,
+      );
+
+      this.sendMessage(
+        chatId,
+        `✅ Purchase successful! You bought ${product.name} for $${order.total.toFixed(2)}.`,
+      );
     } catch (error) {
       console.error('Error handling purchase:', error);
-      this.bot.sendMessage(chatId, '❌ An error occurred while processing your purchase. Please try again later.');
+      this.sendMessage(
+        chatId,
+        '❌ An error occurred while processing your purchase. Please try again later.',
+      );
     }
+  }
+
+  private async getUserByTelegramId(telegramId: string) {
+    return await this.userService.getUserByTelegramId(telegramId);
+  }
+
+  private async getProductById(productId: string) {
+    return await this.productService.getProductById(productId);
+  }
+
+  private async getUserWallet(telegramId: string) {
+    return await this.walletservice.getWalletByTelegramId(telegramId);
+  }
+
+  private async handleInsufficientBalance(
+    chatId: number,
+    telegramId: string,
+    productPrice: number,
+    userBalance: number,
+  ) {
+    const message = `❌ Insufficient balance. You need $${productPrice.toFixed(2)} but have only $${userBalance.toFixed(2)}.`;
+    const replyMarkup = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: '💰 Add Balance',
+              callback_data: `add_balance_${telegramId}`,
+            },
+          ],
+        ],
+      },
+    };
+    return this.sendMessage(chatId, message, replyMarkup);
+  }
+
+  private async createOrder(userId: string, productId: string) {
+    return await this.orderservice.createOrder({
+      userId: String(userId),
+      productId: productId,
+      quantity: 1,
+    });
+  }
+
+  private async updateWalletBalance(
+    userId: string,
+    walletId: string,
+    amount: number,
+  ) {
+    await this.walletservice.updateWalletByUserId(String(userId), {
+      balance:
+        (await this.walletservice.getWalletById(walletId)).balance - amount,
+    });
+  }
+
+  private async createPayment(orderId: string, amount: number) {
+    return await this.prisma.payment.create({
+      data: {
+        orderId: orderId,
+        amount: amount,
+        method: 'WALLET',
+        status: 'PENDING',
+      },
+    });
+  }
+
+  private async createTransaction(
+    walletId: string,
+    userId: string,
+    orderId: string,
+    amount: number,
+    productName: string,
+  ) {
+    return await this.prisma.transaction.create({
+      data: {
+        walletId: String(walletId),
+        userId: String(userId),
+        amount: amount,
+        type: 'PURCHASE',
+        status: 'SUCCESS',
+        description: `Purchase of ${productName}`,
+        orderId: String(orderId),
+      },
+    });
+  }
+
+  private sendMessage(chatId: number, message: string, replyMarkup?: any) {
+    return this.bot.sendMessage(chatId, message, replyMarkup);
   }
 
   private async handleReferralResponse(
@@ -314,8 +294,7 @@ export class TelegramService implements OnModuleInit {
       this.awaitingReferralCode.delete(chatId);
 
       try {
-        const referrer =
-          await this.userService.getUserByTelegramId(referralCode);
+        const referrer = await this.getUserByTelegramId(referralCode);
         if (!referrer || !referrer.telegramId) {
           return this.bot.sendMessage(
             chatId,
@@ -339,7 +318,7 @@ export class TelegramService implements OnModuleInit {
           );
         }
         await this.referralService.createReferral({
-            referredById: String(referrer.id),
+          referredById: String(referrer.id),
           referredUserId: userId,
           rewardAmount: 10,
         });
@@ -386,44 +365,211 @@ export class TelegramService implements OnModuleInit {
     await this.sendProductCategories(chatId, 1);
   }
 
+  private async handleMyOrderList(msg: TelegramBot.Message) {
+    const chatId = msg.chat.id;
+    const telegramId = msg.from.id.toString();
+    const page = 1; // Default to the first page
+    const limit = 10; // Set a limit for the number of orders to fetch
+
+    try {
+      const ordersResponse = await this.orderservice.getOrdersByTelegramId(telegramId, page, limit);
+      const orders = ordersResponse.data;
+
+      if (orders.length === 0) {
+        this.bot.sendMessage(chatId, '📜 You have no orders yet.');
+        return;
+      }
+
+      const orderMessages = orders.map(order => {
+        const deliveryType = order.product.autoDeliver ? 'Automatic Delivery' : 'Manual Delivery';
+        return `🆔 Order ID: ${order.id}\n📦 Product: ${order.product.name}\n💲 Total: $${order.total.toFixed(2)}\n📅 Date: ${new Date(order.createdAt).toLocaleDateString()}`;
+      }).join('\n\n');
+
+      this.bot.sendMessage(chatId, `📜 Your Orders:\n\n${orderMessages}`);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      this.bot.sendMessage(chatId, '❌ An error occurred while fetching your orders. Please try again later.');
+    }
+  }
+
   private async handleProfile(msg: TelegramBot.Message) {
     await this.sendUserProfile(msg.chat.id, msg.from.id.toString());
   }
 
-  private async handleCallbackQuery(callbackQuery: TelegramBot.CallbackQuery) {
-    const chatId = callbackQuery.message.chat.id;
-    const data = callbackQuery.data;
-    const telegramId = callbackQuery.from.id.toString();
+  private async handleCallbackQuery(query: TelegramBot.CallbackQuery) {
+    const chatId = query.message.chat.id;
+    const telegramId = query.from.id.toString();
+    const data = query.data;
 
-    if (data.startsWith('get_referral_')) {
-      await this.sendReferralCode(chatId, telegramId);
-    } else if (data.startsWith('my_referrals_')) {
-      const page = parseInt(data.split('_')[2], 10) || 1;
-      await this.sendUserReferrals(chatId, telegramId, page);
-    } else if (
-      data.startsWith('referral_yes_') ||
-      data.startsWith('referral_no_')
-    ) {
-      await this.handleReferralResponse(callbackQuery);
-    } else if (data.startsWith('category_')) {
-      const categoryId = data.split('_')[1];
-      this.currentPage.set(chatId, 1);
-      await this.sendProductsByCategory(chatId, categoryId, 1);
-    } else if (data.startsWith('product_page_')) {
-      const [_, categoryId, direction] = data.split('_');
-      let currentPage = this.currentPage.get(chatId) || 1;
-      currentPage =
-        direction === 'next' ? currentPage + 1 : Math.max(1, currentPage - 1);
-      this.currentPage.set(chatId, currentPage);
-      await this.sendProductsByCategory(chatId, categoryId, currentPage);
+    try {
+      if (data.startsWith('add_balance_')) {
+        this.handleAddBalance(chatId);
+        return;
+      }
+
+      if (data.startsWith('my_wallets_')) {
+        const page = parseInt(data.split('_')[2], 10);
+        await this.sendUserWallets(chatId, telegramId, page);
+        return;
+      }
+
+      if (data.startsWith('add_wallet_')) {
+        await this.askWalletType(chatId, telegramId);
+        return;
+      }
+
+      if (data.startsWith('wallet_type_')) {
+        const type = data.split('_')[2] as CryptoType;
+        await this.handleWalletAddressInput(chatId, telegramId, type);
+        return;
+      }
+
+      if (data.startsWith('product_') && !data.includes('page')) {
+        await this.handleProductDetails(query);
+        return;
+      }
+
+      if (data.startsWith('back_to_products_')) {
+        await this.handleBackToProducts(query);
+        return;
+      }
+
+      if (data.startsWith('back_to_categories')) {
+        await this.handleBackToCategories(chatId);
+        return;
+      }
+
+      if (data.startsWith('buy_')) {
+        await this.handleBuyProductCallback(query);
+        return;
+      }
+
+      if (data.startsWith('get_referral_')) {
+        await this.sendReferralCode(chatId, telegramId);
+        return;
+      }
+
+      if (data.startsWith('my_referrals_')) {
+        const page = parseInt(data.split('_')[2], 10) || 1;
+        await this.sendUserReferrals(chatId, telegramId, page);
+        return;
+      }
+
+      if (data.startsWith('referral_yes_') || data.startsWith('referral_no_')) {
+        await this.handleReferralResponse(query);
+        return;
+      }
+
+      if (data.startsWith('category_')) {
+        const categoryId = data.split('_')[1];
+        this.currentPage.set(chatId, 1);
+        await this.sendProductsByCategory(chatId, categoryId, 1);
+        return;
+      }
+
+      if (data.startsWith('product_page_')) {
+        const [_, categoryId, direction] = data.split('_');
+        let currentPage = this.currentPage.get(chatId) || 1;
+        currentPage =
+          direction === 'next' ? currentPage + 1 : Math.max(1, currentPage - 1);
+        this.currentPage.set(chatId, currentPage);
+        await this.sendProductsByCategory(chatId, categoryId, currentPage);
+        return;
+      }
+
+      this.bot.answerCallbackQuery(query.id);
+    } catch (error) {
+      console.error('Error handling callback query:', error);
+      this.bot.sendMessage(
+        chatId,
+        'Sorry, an error occurred. Please try again later.',
+      );
+      this.bot.answerCallbackQuery(query.id, { text: 'An error occurred' });
+    }
+  }
+
+  private handleAddBalance(chatId: number): void {
+    this.bot.sendMessage(chatId, 'Please enter the amount you want to add:');
+  }
+
+  private async handleProductDetails(query: any): Promise<void> {
+    const chatId = query.message.chat.id;
+    const productId = query.data.split('_')[1];
+
+    const product = await this.productService.getProductById(productId);
+    if (!product) {
+      this.bot.answerCallbackQuery(query.id, { text: 'Product not found' });
+      return;
     }
 
-    this.bot.answerCallbackQuery(callbackQuery.id);
+    const categoryId = product.categoryId;
+    const page = this.currentPage.get(chatId) || 1;
+
+    const message = `
+      📦 *Product Name:* 
+      ${product.name}
+  
+      💲 *Price:* $${product.price.toFixed(2)} 
+  
+      🚚 *Auto Delivery:* ${product.autoDeliver ? 'Yes' : 'No'}
+  
+      📦 *Quantity in Stock:* ${product.stock}
+    `;
+
+    const keyboard = {
+      inline_keyboard: [
+        [{ text: '🛒 Buy Now', callback_data: `buy_${product.id}` }],
+        [
+          {
+            text: '🔙 Go Back to Products',
+            callback_data: `back_to_products_${categoryId}_${page}`,
+          },
+        ],
+        [
+          {
+            text: '🏠 Back to Categories',
+            callback_data: 'back_to_categories',
+          },
+        ],
+      ],
+    };
+
+    await this.bot.sendMessage(chatId, message, {
+      parse_mode: 'Markdown',
+      reply_markup: keyboard,
+    });
+    this.bot.answerCallbackQuery(query.id);
+  }
+
+  private async handleBackToCategories(chatId: number): Promise<void> {
+    await this.sendProductCategories(chatId, 1);
+    this.bot.answerCallbackQuery(chatId);
+  }
+
+  private async handleBackToProducts(query: any): Promise<void> {
+    const parts = query.data.split('_');
+    const categoryId = parts[3];
+    const page = parseInt(parts[4], 10);
+
+    await this.sendProductsByCategory(query.message.chat.id, categoryId, page);
+    this.bot.answerCallbackQuery(query.id);
+  }
+
+  private async handleBuyProductCallback(query: any): Promise<void> {
+    const productId = query.data.split('_')[1];
+    await this.handleBuyProduct(
+      query.message.chat.id,
+      query.from.id.toString(),
+      productId,
+    );
+    this.bot.answerCallbackQuery(query.id, {
+      text: 'Processing your order...',
+    });
   }
 
   private async sendReferralCode(chatId: number, telegramId: string) {
     try {
-      const user = await this.userService.getUserByTelegramId(telegramId);
+      const user = await this.getUserByTelegramId(telegramId);
       const referralCode = `${telegramId}`;
 
       const message = `
@@ -501,10 +647,14 @@ export class TelegramService implements OnModuleInit {
         ]);
       }
 
-      this.bot.sendMessage(chatId, `📋 *Categories - Page ${page}*`, {
-        parse_mode: 'Markdown',
-        reply_markup: { inline_keyboard: buttons },
-      });
+      const categoryMessage = await this.bot.sendMessage(
+        chatId,
+        `📋 *Categories - Page ${page}*`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: { inline_keyboard: buttons },
+        },
+      );
     } catch (error) {
       this.bot.sendMessage(chatId, '❌ Error fetching categories.');
     }
@@ -521,18 +671,25 @@ export class TelegramService implements OnModuleInit {
         page,
         5,
       );
-  
+
       if (!response.data.length) {
         return this.bot.sendMessage(chatId, '❌ No products in this category.');
       }
-  
+
       const buttons = response.data.map((product) => [
         {
           text: product.name,
           callback_data: `product_${product.id}`,
         },
       ]);
-  
+
+      buttons.push([
+        {
+          text: '🔙 Back to Categories',
+          callback_data: 'back_to_categories',
+        },
+      ]);
+
       if (page > 1 || page < response.pagination.totalPages) {
         buttons.push([
           ...(page > 1
@@ -553,7 +710,7 @@ export class TelegramService implements OnModuleInit {
             : []),
         ]);
       }
-  
+
       await this.bot.sendMessage(chatId, `🛒 *Products - Page ${page}*`, {
         parse_mode: 'Markdown',
         reply_markup: { inline_keyboard: buttons },
@@ -565,7 +722,7 @@ export class TelegramService implements OnModuleInit {
 
   private async sendUserProfile(chatId: number, telegramId: string) {
     try {
-      const user = await this.userService.getUserByTelegramId(telegramId);
+      const user = await this.getUserByTelegramId(telegramId);
 
       const message = `
   👤 <b>Your Profile</b>:
@@ -621,7 +778,7 @@ export class TelegramService implements OnModuleInit {
     page: number = 1,
   ) {
     try {
-      const user = await this.userService.getUserByTelegramId(telegramId);
+      const user = await this.getUserByTelegramId(telegramId);
       const userId = user.id;
       const walletsResponse =
         await this.cryptowalletService.getAllCryptoWalletsByUserIdentifier(
@@ -744,7 +901,7 @@ export class TelegramService implements OnModuleInit {
     this.awaitingWalletInput.delete(chatId);
 
     try {
-      const user = await this.userService.getUserByTelegramId(telegramId);
+      const user = await this.getUserByTelegramId(telegramId);
 
       await this.cryptowalletService.createCryptoWallet({
         type: type as CryptoType,
@@ -769,11 +926,11 @@ export class TelegramService implements OnModuleInit {
   private async handleUserWallet(msg: TelegramBot.Message) {
     const chatId = msg.chat.id;
     const telegramId = msg.from.id.toString();
-  
+
     console.log(
       `Received request for wallet information from user: ${telegramId}`,
     );
-  
+
     try {
       const wallet = await this.walletservice.getWalletByTelegramId(telegramId);
       const balance = wallet.balance.toFixed(2).replace('.', '\\.');
@@ -786,7 +943,7 @@ export class TelegramService implements OnModuleInit {
         /([_*[\]()~`>#+\-=|{}.!\\])/g,
         '\\$1',
       );
-  
+
       const message = `
   💰 *Your Wallet*:
   
