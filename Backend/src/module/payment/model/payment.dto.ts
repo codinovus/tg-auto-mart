@@ -1,6 +1,7 @@
 import { PaginationMeta } from "src/shared/model/GenericResponse.dto";
 import { PaymentMethod, PaymentStatus } from "@prisma/client";
 
+// DTO for a single payment response
 export class PaymentResponseDto {
   id: string;
   orderId: string;
@@ -9,8 +10,27 @@ export class PaymentResponseDto {
   status: PaymentStatus;
   createdAt: Date;
   updatedAt: Date;
+
+  constructor(
+    id: string,
+    orderId: string,
+    amount: number,
+    method: PaymentMethod,
+    status: PaymentStatus,
+    createdAt: Date,
+    updatedAt: Date
+  ) {
+    this.id = id;
+    this.orderId = orderId;
+    this.amount = amount;
+    this.method = method;
+    this.status = status;
+    this.createdAt = createdAt;
+    this.updatedAt = updatedAt;
+  }
 }
 
+// DTO for fetching all payments with pagination
 export class GetAllPaymentsResponseDto {
   success: boolean;
   message: string;
@@ -32,6 +52,7 @@ export class GetAllPaymentsResponseDto {
   }
 }
 
+// DTO for fetching a single payment by ID
 export class GetPaymentByIdResponseDto {
   success: boolean;
   message: string;
@@ -46,12 +67,14 @@ export class GetPaymentByIdResponseDto {
   }
 }
 
+// DTO for creating a new payment
 export class CreatePaymentDto {
   orderId: string;
   amount: number;
   method: PaymentMethod;
 }
 
+// DTO for updating an existing payment
 export class UpdatePaymentDto {
   status?: PaymentStatus;
 }

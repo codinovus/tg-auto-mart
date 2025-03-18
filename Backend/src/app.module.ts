@@ -13,6 +13,11 @@ import { ReferralModule } from './module/referral/referral.module';
 import { CryptoWalletModule } from './module/crypto-wallet/crypto-wallet.module';
 import { WalletModule } from './module/wallet/wallet.module';
 import { OrderModule } from './module/order/order.module';
+import { DepositRequestModule } from './module/deposit-request/deposit-request.module';
+import { DisputeModule } from './module/dispute/dispute.module';
+import { PaymentModule } from './module/payment/payment.module';
+import { PromoCodeModule } from './module/promo-code/promo-code.module';
+import { TransactionModule } from './module/transaction/transaction.module';
 
 @Module({
   imports: [
@@ -28,6 +33,13 @@ import { OrderModule } from './module/order/order.module';
     ProductCategoryModule,
     TelegramModule,
     PrismaModule,
+    DepositRequestModule,
+    DisputeModule,
+    PaymentModule,
+    PromoCodeModule,
+    ReferralModule,
+    TransactionModule,
+    WalletModule
   ],
   controllers: [AppController],
   providers: [AppService],

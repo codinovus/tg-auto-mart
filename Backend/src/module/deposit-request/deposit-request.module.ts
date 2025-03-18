@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { DepositRequestService } from './deposit-request.service';
-import { DepositRequestController } from './deposit-request.controller';
+import { PrismaService } from 'src/shared/prisma/prisma.service';
 
 @Module({
-  providers: [DepositRequestService],
-  controllers: [DepositRequestController]
+  providers: [DepositRequestService, PrismaService],
+  exports: [DepositRequestService],
 })
 export class DepositRequestModule {}
