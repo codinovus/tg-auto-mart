@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/shared/prisma/prisma.service';
 import { CreateWalletDto, WalletResponseDto, UpdateWalletDto, GetAllWalletsResponseDto } from './model/wallet.model';
 import { UserService } from '../user/user.service';
@@ -10,14 +15,43 @@ export class WalletService {
     private userService: UserService,
   ) {}
 
+  // Helper Methods
+  private validatePagination(page: number, limit: number): void {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('Page and limit must be positive integers');
+    }
+  }
+
+  private async validateUserExists(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`User  with ID ${userId} not found`);
+    }
+  }
+
+  private mapWalletToResponse(wallet: any): WalletResponseDto {
+    return {
+      id: wallet.id,
+      balance: wallet.balance,
+      userId: wallet.userId,
+      createdAt: wallet.createdAt,
+      updatedAt: wallet.updatedAt,
+      username: wallet.user?.username || null,
+      telegramId: wallet.user?.telegramId || null,
+    };
+  }
+
   // Create Methods
   async createWallet(createWalletDto: CreateWalletDto): Promise<WalletResponseDto> {
     const { userId } = createWalletDto;
+
+    await this.validateUserExists(userId);
+
     const existingWallet = await this.prisma.wallet.findUnique({
       where: { userId },
     });
     if (existingWallet) {
-      throw new ConflictException('Wallet for this user already exists');
+      throw new ConflictException('User  already owns a wallet');
     }
 
     const wallet = await this.prisma.wallet.create({
@@ -29,6 +63,8 @@ export class WalletService {
 
   // Get Methods
   async getAllWallets(page: number, limit: number): Promise<GetAllWalletsResponseDto> {
+    this.validatePagination(page, limit);
+
     const totalItems = await this.prisma.wallet.count();
 
     const wallets = await this.prisma.wallet.findMany({
@@ -37,9 +73,7 @@ export class WalletService {
       include: { user: true },
     });
 
-    const walletResponseDtos: WalletResponseDto[] = wallets.map(wallet =>
-      this.mapWalletToResponse(wallet),
-    );
+    const walletResponseDtos: WalletResponseDto[] = wallets.map(wallet => this.mapWalletToResponse(wallet));
 
     const totalPages = Math.ceil(totalItems / limit);
     return new GetAllWalletsResponseDto(
@@ -69,6 +103,8 @@ export class WalletService {
   }
 
   async getWalletByUserId(userId: string): Promise<WalletResponseDto> {
+    await this.validateUserExists(userId);
+
     const wallet = await this.prisma.wallet.findUnique({
       where: { userId },
       include: { user: true },
@@ -106,6 +142,8 @@ export class WalletService {
   }
 
   async updateWalletByUserId(userId: string, updateData: UpdateWalletDto): Promise<WalletResponseDto> {
+    await this.validateUserExists(userId);
+
     const wallet = await this.prisma.wallet.findUnique({
       where: { userId },
       include: { user: true },
@@ -145,19 +183,6 @@ export class WalletService {
     return {
       success: true,
       message: `Wallet with ID ${walletId} deleted successfully`,
-    };
- }
-
-  // Helper Methods
-  private mapWalletToResponse(wallet: any): WalletResponseDto {
-    return {
-      id: wallet.id,
-      balance: wallet.balance,
-      userId: wallet.userId,
-      createdAt: wallet.createdAt,
-      updatedAt: wallet.updatedAt,
-      username: wallet.user?.username || null,
-      telegramId: wallet.user?.telegramId || null,
     };
   }
 }

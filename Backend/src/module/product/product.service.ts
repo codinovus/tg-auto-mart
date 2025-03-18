@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/shared/prisma/prisma.service';
 import {
@@ -15,9 +16,42 @@ import {
 export class ProductService {
   constructor(private prisma: PrismaService) {}
 
+  // Helper Methods
+  private validatePagination(page: number, limit: number): void {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('Page and limit must be positive integers');
+    }
+  }
+
+  private async validateProductExists(productId: string): Promise<void> {
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${productId} not found`);
+    }
+  }
+
+  private mapToProductResponseDto(product: any): ProductResponseDto {
+    return {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      stock: product.stock,
+      storeId: product.storeId,
+      categoryId: product.categoryId,
+      autoDeliver: product.autoDeliver,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+    };
+  }
+
   // Create Methods
   async createProduct(createProductDto: CreateProductDto): Promise<ProductResponseDto> {
     const { name, description, price, stock, storeId, categoryId, autoDeliver } = createProductDto;
+
+    if (!name || !storeId || price < 0 || stock < 0) {
+      throw new BadRequestException('Name, storeId, price (>= 0), and stock (>= 0) are required');
+    }
 
     const existingProduct = await this.prisma.product.findFirst({
       where: { name, storeId },
@@ -39,18 +73,7 @@ export class ProductService {
       },
     });
 
-    return {
-      id: product.id,
-      name: product.name,
-      description: product.description,
-      price: product.price,
-      stock: product.stock,
-      storeId: product.storeId,
-      categoryId: product.categoryId,
-      autoDeliver: product.autoDeliver,
-      createdAt: product.createdAt,
-      updatedAt: product.updatedAt,
-    };
+    return this.mapToProductResponseDto(product);
   }
 
   // Get Methods
@@ -60,8 +83,9 @@ export class ProductService {
     categoryId?: string,
     storeId?: string,
   ): Promise<GetAllProductsResponseDto> {
-    const filters: any = {};
+    this.validatePagination(page, limit);
 
+    const filters: any = {};
     if (categoryId) {
       filters.categoryId = categoryId;
     }
@@ -77,18 +101,7 @@ export class ProductService {
       take: limit,
     });
 
-    const productResponseDtos: ProductResponseDto[] = products.map((product) => ({
-      id: product.id,
-      name: product.name,
-      description: product.description,
-      price: product.price,
-      stock: product.stock,
-      storeId: product.storeId,
-      categoryId: product.categoryId,
-      autoDeliver: product.autoDeliver,
-      createdAt: product.createdAt,
-      updatedAt: product.updatedAt,
-    }));
+    const productResponseDtos: ProductResponseDto[] = products.map((product) => this.mapToProductResponseDto(product));
 
     const totalPages = Math.ceil(totalItems / limit);
 
@@ -106,15 +119,17 @@ export class ProductService {
   }
 
   async getProductById(productId: string): Promise<ProductResponseDto> {
+    if (!productId) {
+      throw new BadRequestException('Product ID is required');
+    }
+
+    await this.validateProductExists(productId);
+
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
     });
 
-    if (!product) {
-      throw new NotFoundException(`Product with ID ${productId} not found`);
-    }
-
-    return product;
+    return this.mapToProductResponseDto(product);
   }
 
   async getProductsByCategoryId(
@@ -122,6 +137,8 @@ export class ProductService {
     page: number,
     limit: number,
   ): Promise<GetAllProductsResponseDto> {
+    this.validatePagination(page, limit);
+
     const totalItems = await this.prisma.product.count({
       where: { categoryId },
     });
@@ -132,18 +149,7 @@ export class ProductService {
       take: limit,
     });
 
-    const productResponseDtos: ProductResponseDto[] = products.map((product) => ({
-      id: product.id,
-      name: product.name,
-      description: product.description,
-      price: product.price,
-      stock: product.stock,
-      storeId: product.storeId,
-      categoryId: product.categoryId,
-      autoDeliver: product.autoDeliver,
-      createdAt: product.createdAt,
-      updatedAt: product.updatedAt,
-    }));
+    const productResponseDtos: ProductResponseDto[] = products.map((product) => this.mapToProductResponseDto(product));
 
     const totalPages = Math.ceil(totalItems / limit);
 
@@ -165,61 +171,52 @@ export class ProductService {
     productId: string,
     updateData: UpdateProductDto,
   ): Promise<ProductResponseDto> {
-    const product = await this.prisma.product.findUnique({
-      where: { id: productId },
-    });
-
-    if (!product) {
-      throw new NotFoundException(`Product with ID ${productId} not found`);
+    if (!productId) {
+      throw new BadRequestException('Product ID is required');
     }
+
+    await this.validateProductExists(productId);
 
     const updatedProduct = await this.prisma.product.update({
       where: { id: productId },
       data: updateData,
     });
 
-    return updatedProduct;
+    return this.mapToProductResponseDto(updatedProduct);
   }
 
   async updateProductStock(productId: string, change: number): Promise<ProductResponseDto> {
+    if (!productId) {
+      throw new BadRequestException('Product ID is required');
+    }
+  
+    await this.validateProductExists(productId);
+  
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
     });
-
+  
     if (!product) {
       throw new NotFoundException(`Product with ID ${productId} not found`);
     }
-
+  
     const newStock = Math.max(0, product.stock + change);
-
+  
     const updatedProduct = await this.prisma.product.update({
       where: { id: productId },
       data: { stock: newStock },
     });
-
-    return {
-      id: updatedProduct.id,
-      name: updatedProduct.name,
-      description: updatedProduct.description,
-      price: updatedProduct.price,
-      stock: updatedProduct.stock,
-      storeId: updatedProduct.storeId,
-      categoryId: updatedProduct.categoryId,
-      autoDeliver: updatedProduct.autoDeliver,
-      createdAt: updatedProduct.createdAt,
-      updatedAt: updatedProduct.updatedAt,
-    };
+  
+    return this.mapToProductResponseDto(updatedProduct);
   }
 
   // Delete Methods
   async deleteProductById(productId: string): Promise<{ success: boolean; message: string }> {
-    const product = await this.prisma.product.findUnique({
-      where: { id: productId },
-    });
-
-    if (!product) {
-      throw new NotFoundException(`Product with ID ${productId} not found`);
+    if (!productId) {
+      throw new BadRequestException('Product ID is required');
     }
+
+    await this.validateProductExists(productId);
 
     await this.prisma.product.delete({
       where: { id: productId },

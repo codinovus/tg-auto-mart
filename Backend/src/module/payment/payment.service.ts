@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/shared/prisma/prisma.service';
 import {
@@ -16,16 +17,48 @@ import {
 export class PaymentService {
   constructor(private prisma: PrismaService) {}
 
+  // Helper Methods
+  private validatePagination(page: number, limit: number): void {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('Page and limit must be positive integers');
+    }
+  }
+
+  private async validateOrderExists(orderId: string): Promise<void> {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) {
+      throw new NotFoundException(`Order with ID ${orderId} not found`);
+    }
+  }
+
+  private async validatePaymentExists(paymentId: string): Promise<void> {
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) {
+      throw new NotFoundException(`Payment with ID ${paymentId} not found`);
+    }
+  }
+
+  private mapToPaymentResponseDto(payment: any): PaymentResponseDto {
+    return {
+      id: payment.id,
+      orderId: payment.orderId,
+      amount: payment.amount,
+      method: payment.method,
+      status: payment.status,
+      createdAt: payment.createdAt,
+      updatedAt: payment.updatedAt,
+    };
+  }
+
   // Create Methods
   async createPayment(createPaymentDto: CreatePaymentDto): Promise<PaymentResponseDto> {
     const { orderId, amount, method } = createPaymentDto;
 
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
-    });
-    if (!order) {
-      throw new NotFoundException(`Order with ID ${orderId} not found`);
+    if (!orderId || amount <= 0 || !method) {
+      throw new BadRequestException('Order ID, amount (greater than 0), and payment method are required');
     }
+
+    await this.validateOrderExists(orderId);
 
     const existingPayment = await this.prisma.payment.findUnique({
       where: { orderId },
@@ -47,24 +80,21 @@ export class PaymentService {
 
   // Get Methods
   async getAllPayments(page: number, limit: number): Promise<GetAllPaymentsResponseDto> {
+    this.validatePagination(page, limit);
+
     const totalItems = await this.prisma.payment.count();
     const payments = await this.prisma.payment.findMany({
       skip: (page - 1) * limit,
       take: limit,
     });
 
-    const paymentResponseDtos: PaymentResponseDto[] = payments.map(payment =>
-      this.mapToPaymentResponseDto(payment),
-    );
-
-    const totalPages = Math.ceil(totalItems / limit);
     return new GetAllPaymentsResponseDto(
       true,
       'Payments fetched successfully',
-      paymentResponseDtos,
+      payments.map((payment) => this.mapToPaymentResponseDto(payment)),
       {
         totalItems,
-        totalPages,
+        totalPages: Math.ceil(totalItems / limit),
         currentPage: page,
         perPage: limit,
       },
@@ -72,13 +102,15 @@ export class PaymentService {
   }
 
   async getPaymentById(paymentId: string): Promise<GetPaymentByIdResponseDto> {
+    if (!paymentId) {
+      throw new BadRequestException('Payment ID is required');
+    }
+
+    await this.validatePaymentExists(paymentId);
+
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
     });
-
-    if (!payment) {
-      throw new NotFoundException(`Payment with ID ${paymentId} not found`);
-    }
 
     return new GetPaymentByIdResponseDto(
       true,
@@ -88,17 +120,12 @@ export class PaymentService {
   }
 
   // Update Methods
-  async updatePaymentById(
-    paymentId: string,
-    updateData: UpdatePaymentDto,
-  ): Promise<PaymentResponseDto> {
-    const payment = await this.prisma.payment.findUnique({
-      where: { id: paymentId },
-    });
-
-    if (!payment) {
-      throw new NotFoundException(`Payment with ID ${paymentId} not found`);
+  async updatePaymentById(paymentId: string, updateData: UpdatePaymentDto): Promise<PaymentResponseDto> {
+    if (!paymentId) {
+      throw new BadRequestException('Payment ID is required');
     }
+
+    await this.validatePaymentExists(paymentId);
 
     const updatedPayment = await this.prisma.payment.update({
       where: { id: paymentId },
@@ -110,13 +137,11 @@ export class PaymentService {
 
   // Delete Methods
   async deletePaymentById(paymentId: string): Promise<{ success: boolean; message: string }> {
-    const payment = await this.prisma.payment.findUnique({
-      where: { id: paymentId },
-    });
-
-    if (!payment) {
-      throw new NotFoundException(`Payment with ID ${paymentId} not found`);
+    if (!paymentId) {
+      throw new BadRequestException('Payment ID is required');
     }
+
+    await this.validatePaymentExists(paymentId);
 
     await this.prisma.payment.delete({
       where: { id: paymentId },
@@ -125,19 +150,6 @@ export class PaymentService {
     return {
       success: true,
       message: `Payment with ID ${paymentId} deleted successfully`,
-    };
-  }
-
-  // Other Methods
-  private mapToPaymentResponseDto(payment: any): PaymentResponseDto {
-    return {
-      id: payment.id,
-      orderId: payment.orderId,
-      amount: payment.amount,
-      method: payment.method,
-      status: payment.status,
-      createdAt: payment.createdAt,
-      updatedAt: payment.updatedAt,
     };
   }
 }

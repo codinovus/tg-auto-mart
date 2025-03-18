@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from 'src/shared/prisma/prisma.service';
 import {
   CreateOrderDto,
@@ -11,6 +11,53 @@ import {
 @Injectable()
 export class OrderService {
   constructor(private prisma: PrismaService) {}
+
+  // Helper Methods
+  private validatePagination(page: number, limit: number): void {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('Page and limit must be positive integers');
+    }
+  }
+
+  private async validateProductExists(productId: string): Promise<void> {
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${productId} not found`);
+    }
+  }
+
+  private async validateUserExists(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`User  with ID ${userId} not found`);
+    }
+  }
+
+  private async validateOrderExists(orderId: string): Promise<void> {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) {
+      throw new NotFoundException(`Order with ID ${orderId} not found`);
+    }
+  }
+
+  private mapToOrderResponseDto(order: any): OrderResponseDto {
+    return {
+      id: order.id,
+      userId: order.userId,
+      productId: order.productId,
+      product: order.product,
+      quantity: order.quantity,
+      total: order.total,
+      discountAmount: order.discountAmount,
+      status: order.status,
+      payment: order.payment,
+      promoCode: order.promoCode,
+      disputes: order.disputes,
+      transactions: order.Transaction,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+    };
+  }
 
   // Create Methods
   async createOrder(createOrderDto: CreateOrderDto): Promise<OrderResponseDto> {
@@ -59,8 +106,9 @@ export class OrderService {
 
   // Get Methods
   async getAllOrders(page: number, limit: number): Promise<GetAllOrdersResponseDto> {
-    const totalItems = await this.prisma.order.count();
+    this.validatePagination(page, limit);
 
+    const totalItems = await this.prisma.order.count();
     const orders = await this.prisma.order.findMany({
       skip: (page - 1) * limit,
       take: limit,
@@ -71,7 +119,7 @@ export class OrderService {
         disputes: true,
         Transaction: true,
       },
-    });
+ });
 
     return new GetAllOrdersResponseDto(
       true,
@@ -87,8 +135,10 @@ export class OrderService {
   }
 
   async getOrdersByUserId(userId: string, page: number, limit: number): Promise<GetAllOrdersResponseDto> {
-    const totalItems = await this.prisma.order.count({ where: { userId } });
+    this.validatePagination(page, limit);
+    await this.validateUserExists(userId);
 
+    const totalItems = await this.prisma.order.count({ where: { userId } });
     const orders = await this.prisma.order.findMany({
       where: { userId },
       skip: (page - 1) * limit,
@@ -116,6 +166,8 @@ export class OrderService {
   }
 
   async getOrdersByTelegramId(telegramId: string, page: number, limit: number): Promise<GetAllOrdersResponseDto> {
+    this.validatePagination(page, limit);
+
     const totalItems = await this.prisma.order.count({
       where: { user: { telegramId } },
     });
@@ -147,6 +199,12 @@ export class OrderService {
   }
 
   async getOrderById(orderId: string): Promise<GetOrderByIdResponseDto> {
+    if (!orderId) {
+      throw new BadRequestException('Order ID is required');
+    }
+
+    await this.validateOrderExists(orderId);
+
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -158,20 +216,16 @@ export class OrderService {
       },
     });
 
-    if (!order) {
-      throw new NotFoundException(`Order with ID ${orderId} not found`);
-    }
-
     return new GetOrderByIdResponseDto(true, 'Order fetched successfully', this.mapToOrderResponseDto(order));
   }
 
   // Update Methods
   async updateOrderById(orderId: string, updateData: UpdateOrderDto): Promise<OrderResponseDto> {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
-
-    if (!order) {
-      throw new NotFoundException(`Order with ID ${orderId} not found`);
+    if (!orderId) {
+      throw new BadRequestException('Order ID is required');
     }
+
+    await this.validateOrderExists(orderId);
 
     const updatedOrder = await this.prisma.order.update({
       where: { id: orderId },
@@ -190,34 +244,14 @@ export class OrderService {
 
   // Delete Methods
   async deleteOrderById(orderId: string): Promise<{ success: boolean; message: string }> {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
-
-    if (!order) {
-      throw new NotFoundException(`Order with ID ${orderId} not found`);
+    if (!orderId) {
+      throw new BadRequestException('Order ID is required');
     }
+
+    await this.validateOrderExists(orderId);
 
     await this.prisma.order.delete({ where: { id: orderId } });
 
     return { success: true, message: `Order with ID ${orderId} deleted successfully` };
-  }
-
-  // Other Methods
-  private mapToOrderResponseDto(order: any): OrderResponseDto {
-    return {
-      id: order.id,
-      userId: order.userId,
-      productId: order.productId,
-      product: order.product,
-      quantity: order.quantity,
-      total: order.total,
-      discountAmount: order.discountAmount,
-      status: order.status,
-      payment: order.payment,
-      promoCode: order.promoCode,
-      disputes: order.disputes,
-      transactions: order.Transaction,
-      createdAt: order.createdAt,
-      updatedAt: order.updatedAt,
-    };
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from 'src/shared/prisma/prisma.service';
 import {
   CreateDisputeDto,
@@ -14,8 +14,35 @@ import { UserResponseDto } from 'src/module/user/model/user.model';
 export class DisputeService {
   constructor(private prisma: PrismaService) {}
 
+  // Helper Methods
+  private validatePagination(page: number, limit: number): void {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('Page and limit must be positive integers');
+    }
+  }
+
+  private mapToDisputeResponseDto(dispute: any): DisputeResponseDto {
+    return {
+      id: dispute.id,
+      order: dispute.order as OrderResponseDto,
+      orderId: dispute.orderId,
+      user: dispute.user as UserResponseDto,
+      userId: dispute.userId,
+      status: dispute.status,
+      reason: dispute.reason,
+      resolution: dispute.resolution,
+      createdAt: dispute.createdAt,
+      updatedAt: dispute.updatedAt,
+    };
+  }
+
+  // Create Methods
   async createDispute(createDisputeDto: CreateDisputeDto): Promise<DisputeResponseDto> {
     const { orderId, userId, reason } = createDisputeDto;
+
+    if (!orderId || !userId || !reason) {
+      throw new BadRequestException('Order ID, User ID, and reason are required');
+    }
 
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
@@ -42,7 +69,10 @@ export class DisputeService {
     return this.mapToDisputeResponseDto(dispute);
   }
 
+  // Get Methods
   async getAllDisputes(page: number, limit: number): Promise<GetAllDisputesResponseDto> {
+    this.validatePagination(page, limit);
+
     const totalItems = await this.prisma.dispute.count();
     const disputes = await this.prisma.dispute.findMany({
       skip: (page - 1) * limit,
@@ -70,6 +100,10 @@ export class DisputeService {
   }
 
   async getDisputeById(disputeId: string): Promise<GetDisputeByIdResponseDto> {
+    if (!disputeId) {
+      throw new BadRequestException('Dispute ID is required');
+    }
+
     const dispute = await this.prisma.dispute.findUnique({
       where: { id: disputeId },
       include: {
@@ -82,10 +116,19 @@ export class DisputeService {
       throw new NotFoundException(`Dispute with ID ${disputeId} not found`);
     }
 
-    return new GetDisputeByIdResponseDto(true, 'Dispute fetched successfully', this.mapToDisputeResponseDto(dispute));
+    return new GetDisputeByIdResponseDto(
+      true,
+      'Dispute fetched successfully',
+      this.mapToDisputeResponseDto(dispute),
+    );
   }
 
+  // Update Methods
   async updateDisputeById(disputeId: string, updateData: UpdateDisputeDto): Promise<DisputeResponseDto> {
+    if (!disputeId) {
+      throw new BadRequestException('Dispute ID is required');
+    }
+
     const dispute = await this.prisma.dispute.findUnique({
       where: { id: disputeId },
     });
@@ -102,7 +145,12 @@ export class DisputeService {
     return this.mapToDisputeResponseDto(updatedDispute);
   }
 
+  // Delete Methods
   async deleteDisputeById(disputeId: string): Promise<{ success: boolean; message: string }> {
+    if (!disputeId) {
+      throw new BadRequestException('Dispute ID is required');
+    }
+
     const dispute = await this.prisma.dispute.findUnique({
       where: { id: disputeId },
     });
@@ -120,19 +168,4 @@ export class DisputeService {
       message: `Dispute with ID ${disputeId} deleted successfully`,
     };
   }
-
-  private mapToDisputeResponseDto(dispute: any): DisputeResponseDto {
-    return {
-      id: dispute.id,
-      order: dispute.order as OrderResponseDto,
-      orderId: dispute.orderId,
-      user: dispute.user as UserResponseDto,
-      userId: dispute.userId,
-      status: dispute.status,
-      reason: dispute.reason,
-      resolution: dispute.resolution,
-      createdAt: dispute.createdAt,
-      updatedAt: dispute.updatedAt,
-    };
-  }
-}
+} 

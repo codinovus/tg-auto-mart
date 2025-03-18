@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/shared/prisma/prisma.service';
 import {
@@ -15,11 +16,40 @@ import {
 export class ProductKeyService {
   constructor(private prisma: PrismaService) {}
 
+  // Helper Methods
+  private validatePagination(page: number, limit: number): void {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('Page and limit must be positive integers');
+    }
+  }
+
+  private async validateProductKeyExists(productKeyId: string): Promise<void> {
+    const productKey = await this.prisma.productKey.findUnique({ where: { id: productKeyId } });
+    if (!productKey) {
+      throw new NotFoundException(`Product key with ID ${productKeyId} not found`);
+    }
+  }
+
+  private mapToProductKeyResponseDto(productKey: any): ProductKeyResponseDto {
+    return {
+      id: productKey.id,
+      key: productKey.key,
+      productId: productKey.productId,
+      isSold: productKey.isSold,
+      createdAt: productKey.createdAt,
+      updatedAt: productKey.updatedAt,
+    };
+  }
+
   // Create Methods
   async createProductKey(
     createProductKeyDto: CreateProductKeyDto,
   ): Promise<ProductKeyResponseDto> {
     const { key, productId } = createProductKeyDto;
+
+    if (!key || !productId) {
+      throw new BadRequestException('Key and Product ID are required');
+    }
 
     const existingKey = await this.prisma.productKey.findUnique({
       where: { key },
@@ -32,14 +62,7 @@ export class ProductKeyService {
       data: { key, productId },
     });
 
-    return {
-      id: productKey.id,
-      key: productKey.key,
-      productId: productKey.productId,
-      isSold: productKey.isSold,
-      createdAt: productKey.createdAt,
-      updatedAt: productKey.updatedAt,
-    };
+    return this.mapToProductKeyResponseDto(productKey);
   }
 
   // Get Methods
@@ -47,21 +70,17 @@ export class ProductKeyService {
     page: number,
     limit: number,
   ): Promise<GetAllProductKeysResponseDto> {
-    const totalItems = await this.prisma.productKey.count();
+    this.validatePagination(page, limit);
 
+    const totalItems = await this.prisma.productKey.count();
     const keys = await this.prisma.productKey.findMany({
       skip: (page - 1) * limit,
       take: limit,
     });
 
-    const productKeyResponseDtos: ProductKeyResponseDto[] = keys.map((key) => ({
-      id: key.id,
-      key: key.key,
-      productId: key.productId,
-      isSold: key.isSold,
-      createdAt: key.createdAt,
-      updatedAt: key.updatedAt,
-    }));
+    const productKeyResponseDtos: ProductKeyResponseDto[] = keys.map((key) =>
+      this.mapToProductKeyResponseDto(key),
+    );
 
     const totalPages = Math.ceil(totalItems / limit);
     return new GetAllProductKeysResponseDto(
@@ -80,15 +99,17 @@ export class ProductKeyService {
   async getProductKeyById(
     productKeyId: string,
   ): Promise<ProductKeyResponseDto> {
+    if (!productKeyId) {
+      throw new BadRequestException('Product key ID is required');
+    }
+
+    await this.validateProductKeyExists(productKeyId);
+
     const productKey = await this.prisma.productKey.findUnique({
       where: { id: productKeyId },
     });
 
-    if (!productKey) {
-      throw new NotFoundException(`Product key with ID ${productKeyId} not found`);
-    }
-
-    return productKey;
+    return this.mapToProductKeyResponseDto(productKey);
   }
 
   // Update Methods
@@ -96,20 +117,18 @@ export class ProductKeyService {
     productKeyId: string,
     updateData: UpdateProductKeyDto,
   ): Promise<ProductKeyResponseDto> {
-    const productKey = await this.prisma.productKey.findUnique({
-      where: { id: productKeyId },
-    });
-
-    if (!productKey) {
-      throw new NotFoundException(`Product key with ID ${productKeyId} not found`);
+    if (!productKeyId) {
+      throw new BadRequestException('Product key ID is required');
     }
+
+    await this.validateProductKeyExists(productKeyId);
 
     const updatedProductKey = await this.prisma.productKey.update({
       where: { id: productKeyId },
       data: updateData,
     });
 
-    return updatedProductKey;
+    return this.mapToProductKeyResponseDto(updatedProductKey);
   }
 
   // Delete Methods
@@ -117,13 +136,11 @@ export class ProductKeyService {
     success: boolean;
     message: string;
   }> {
-    const productKey = await this.prisma.productKey.findUnique({
-      where: { id: productKeyId },
-    });
-
-    if (!productKey) {
-      throw new NotFoundException(`Product key with ID ${productKeyId} not found`);
+    if (!productKeyId) {
+      throw new BadRequestException('Product key ID is required');
     }
+
+    await this.validateProductKeyExists(productKeyId);
 
     await this.prisma.productKey.delete({
       where: { id: productKeyId },

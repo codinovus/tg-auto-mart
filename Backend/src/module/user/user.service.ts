@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/shared/prisma/prisma.service';
 import { PaginationMeta } from 'src/shared/model/GenericResponse.dto';
 import {
@@ -13,14 +17,41 @@ import {
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
+  // Helper Methods
+  private validatePagination(page: number, limit: number): void {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('Page and limit must be positive integers');
+    }
+  }
+
+  private async validateUserExists(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`User  with ID ${userId} not found`);
+    }
+  }
+
+  private mapToUserResponseDto(user: any): UserResponseDto {
+    return {
+      id: user.id,
+      username: user.username || undefined,
+      telegramId: user.telegramId || undefined,
+      role: user.role,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      balance: user.wallet ? user.wallet.balance : 0,
+      orderCount: user.orders.length,
+    };
+  }
+
   // Create Methods
-  async registerUser(userData: RegisterUserModel) {
-    const existingUser = await this.prisma.user.findUnique({
+  async registerUser (userData: RegisterUserModel) {
+    const existingUser  = await this.prisma.user.findUnique({
       where: { telegramId: userData.telegramId },
     });
 
-    if (existingUser) {
-      return existingUser;
+    if (existingUser ) {
+      return existingUser ;
     }
 
     return this.prisma.$transaction(async (prisma) => {
@@ -46,6 +77,8 @@ export class UserService {
 
   // Get Methods
   async getUsers(page: number, limit: number): Promise<{ users: UserResponseDto[]; pagination: PaginationMeta }> {
+    this.validatePagination(page, limit);
+
     const totalItems = await this.prisma.user.count();
 
     const users = await this.prisma.user.findMany({
@@ -57,16 +90,7 @@ export class UserService {
       },
     });
 
-    const userResponseDtos: UserResponseDto[] = users.map((user) => ({
-      id: user.id,
-      username: user.username || undefined,
-      telegramId: user.telegramId || undefined,
-      role: user.role,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      balance: user.wallet ? user.wallet.balance : 0,
-      orderCount: user.orders.length,
-    }));
+    const userResponseDtos: UserResponseDto[] = users.map((user) => this.mapToUserResponseDto(user));
 
     const totalPages = Math.ceil(totalItems / limit);
     const pagination: PaginationMeta = {
@@ -80,6 +104,8 @@ export class UserService {
   }
 
   async getUserById(id: string): Promise<UserResponseDto> {
+    await this.validateUserExists(id);
+
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: {
@@ -88,23 +114,12 @@ export class UserService {
       },
     });
 
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
-    }
-
-    return {
-      id: user.id,
-      username: user.username || undefined,
-      telegramId: user.telegramId || undefined,
-      role: user.role,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      balance: user.wallet ? user.wallet.balance : 0,
-      orderCount: user.orders.length,
-    };
+    return this.mapToUserResponseDto(user);
   }
 
   async getProfile(userId: string): Promise<UserProfileDto> {
+    await this.validateUserExists(userId);
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -117,7 +132,7 @@ export class UserService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new NotFoundException(`User  with ID ${userId} not found`);
     }
 
     return {
@@ -150,40 +165,24 @@ export class UserService {
   }
 
   // Update Methods
-  async updateUser(
+  async updateUser  (
     userId: string,
     updateData: UpdateUserDto,
   ): Promise<GetUserByIdResponseDto> {
-    const existingUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { wallet: true, orders: true },
-    });
-
-    if (!existingUser) {
-      throw new NotFoundException(`User with ID ${userId} not found`);
-    }
+    await this.validateUserExists(userId);
 
     const updatedUser  = await this.prisma.user.update({
       where: { id: userId },
       data: {
-        username: updateData.username ?? existingUser .username,
-        password: updateData.password ?? existingUser .password,
-        telegramId: updateData.telegramId ?? existingUser .telegramId,
-        role: updateData.role ?? existingUser .role,
+        username: updateData.username ?? undefined,
+        password: updateData.password ?? undefined,
+        telegramId: updateData.telegramId ?? undefined,
+        role: updateData.role ?? undefined,
       },
       include: { wallet: true, orders: true },
     });
 
-    const userResponse: UserResponseDto = {
-      id: updatedUser .id,
-      username: updatedUser .username || undefined,
-      telegramId: updatedUser .telegramId || undefined,
-      role: updatedUser .role,
-      createdAt: updatedUser .createdAt,
-      updatedAt: updatedUser .updatedAt,
-      balance: updatedUser .wallet ? updatedUser .wallet.balance : 0,
-      orderCount: updatedUser .orders.length,
-    };
+    const userResponse: UserResponseDto = this.mapToUserResponseDto(updatedUser);
 
     return new GetUserByIdResponseDto(
       true,
@@ -194,11 +193,7 @@ export class UserService {
 
   // Delete Methods
   async deleteUser (userId: string): Promise<{ success: boolean; message: string }> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-
-    if (!user) {
-      throw new NotFoundException(`User  with ID ${userId} not found`);
-    }
+    await this.validateUserExists(userId);
 
     await this.prisma.user.delete({ where: { id: userId } });
 
@@ -218,15 +213,6 @@ export class UserService {
       throw new NotFoundException(`User  with Telegram ID ${telegramId} not found`);
     }
 
-    return {
-      id: user.id,
-      username: user.username || undefined,
-      telegramId: user.telegramId || undefined,
-      role: user.role,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      balance: user.wallet ? user.wallet.balance : 0,
-      orderCount: user.orders.length,
-    };
+    return this.mapToUserResponseDto(user);
   }
 }

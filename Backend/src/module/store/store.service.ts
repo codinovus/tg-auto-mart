@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/shared/prisma/prisma.service';
 import {
@@ -15,9 +16,38 @@ import {
 export class StoreService {
   constructor(private prisma: PrismaService) {}
 
+  // Helper Methods
+  private validatePagination(page: number, limit: number): void {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('Page and limit must be positive integers');
+    }
+  }
+
+  private async validateStoreExists(storeId: string): Promise<void> {
+    const store = await this.prisma.store.findUnique({ where: { id: storeId } });
+    if (!store) {
+      throw new NotFoundException(`Store with ID ${storeId} not found`);
+    }
+  }
+
+  private mapToStoreResponseDto(store: any): StoreResponseDto {
+    return {
+      id: store.id,
+      name: store.name,
+      ownerId: store.ownerId,
+      createdAt: store.createdAt,
+      updatedAt: store.updatedAt,
+    };
+  }
+
   // Create Methods
   async createStore(createStoreDto: CreateStoreDto): Promise<StoreResponseDto> {
     const { name, ownerId } = createStoreDto;
+
+    if (!name || !ownerId) {
+      throw new BadRequestException('Store name and owner ID are required');
+    }
+
     const existingStore = await this.prisma.store.findUnique({
       where: { ownerId },
     });
@@ -32,31 +62,20 @@ export class StoreService {
       },
     });
 
-    return {
-      id: store.id,
-      name: store.name,
-      ownerId: store.ownerId,
-      createdAt: store.createdAt,
-      updatedAt: store.updatedAt,
-    };
+    return this.mapToStoreResponseDto(store);
   }
 
   // Get Methods
   async getAllStores(page: number, limit: number): Promise<GetAllStoresResponseDto> {
-    const totalItems = await this.prisma.store.count();
+    this.validatePagination(page, limit);
 
+    const totalItems = await this.prisma.store.count();
     const stores = await this.prisma.store.findMany({
       skip: (page - 1) * limit,
       take: limit,
     });
 
-    const storeResponseDtos: StoreResponseDto[] = stores.map((store) => ({
-      id: store.id,
-      name: store.name,
-      ownerId: store.ownerId,
-      createdAt: store.createdAt,
-      updatedAt: store.updatedAt,
-    }));
+    const storeResponseDtos: StoreResponseDto[] = stores.map((store) => this.mapToStoreResponseDto(store));
 
     const totalPages = Math.ceil(totalItems / limit);
     return new GetAllStoresResponseDto(
@@ -73,44 +92,42 @@ export class StoreService {
   }
 
   async getStoreById(storeId: string): Promise<StoreResponseDto> {
+    if (!storeId) {
+      throw new BadRequestException('Store ID is required');
+    }
+
+    await this.validateStoreExists(storeId);
+
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
     });
 
-    if (!store) {
-      throw new NotFoundException(`Store with ID ${storeId} not found`);
-    }
-
-    return store;
+    return this.mapToStoreResponseDto(store);
   }
 
   // Update Methods
   async updateStoreById(storeId: string, updateData: UpdateStoreDto): Promise<StoreResponseDto> {
-    const store = await this.prisma.store.findUnique({
-      where: { id: storeId },
-    });
-
-    if (!store) {
-      throw new NotFoundException(`Store with ID ${storeId} not found`);
+    if (!storeId) {
+      throw new BadRequestException('Store ID is required');
     }
+
+    await this.validateStoreExists(storeId);
 
     const updatedStore = await this.prisma.store.update({
       where: { id: storeId },
       data: updateData,
     });
 
-    return updatedStore;
+    return this.mapToStoreResponseDto(updatedStore);
   }
 
   // Delete Methods
   async deleteStoreById(storeId: string): Promise<{ success: boolean; message: string }> {
-    const store = await this.prisma.store.findUnique({
-      where: { id: storeId },
-    });
-
-    if (!store) {
-      throw new NotFoundException(`Store with ID ${storeId} not found`);
+    if (!storeId) {
+      throw new BadRequestException('Store ID is required');
     }
+
+    await this.validateStoreExists(storeId);
 
     await this.prisma.store.delete({
       where: { id: storeId },

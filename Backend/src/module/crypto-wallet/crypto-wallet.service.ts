@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/shared/prisma/prisma.service';
 import {
@@ -15,30 +16,56 @@ import {
 export class CryptoWalletService {
   constructor(private prisma: PrismaService) {}
 
+  // Helper Methods
+  private validatePagination(page: number, limit: number): void {
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('Page and limit must be positive integers');
+    }
+  }
+
+  private mapToCryptoWalletResponse(wallet: any): CryptoWalletResponseDto {
+    return {
+      id: wallet.id,
+      type: wallet.type,
+      address: wallet.address,
+      userId: wallet.userId,
+      createdAt: wallet.createdAt,
+      updatedAt: wallet.updatedAt,
+    };
+  }
+
+  // Create Methods
   async createCryptoWallet(
     createWalletDto: CreateCryptoWalletDto,
   ): Promise<CryptoWalletResponseDto> {
     const { type, address, userId } = createWalletDto;
+
+    if (!type || !address || !userId) {
+      throw new BadRequestException('Type, address, and userId are required');
+    }
 
     const existingWallet = await this.prisma.cryptoWallet.findUnique({
       where: { address },
     });
 
     if (existingWallet) {
-      throw new ConflictException('Wallet with this address already exists');
+      throw new ConflictException('A wallet with this address already exists');
     }
 
     const wallet = await this.prisma.cryptoWallet.create({
       data: { type, address, userId },
     });
 
-    return wallet;
+    return this.mapToCryptoWalletResponse(wallet);
   }
 
+  // Get Methods
   async getAllCryptoWallets(
     page: number,
     limit: number,
   ): Promise<GetAllCryptoWalletsResponseDto> {
+    this.validatePagination(page, limit);
+
     const totalItems = await this.prisma.cryptoWallet.count();
 
     const wallets = await this.prisma.cryptoWallet.findMany({
@@ -47,14 +74,7 @@ export class CryptoWalletService {
     });
 
     const walletResponseDtos: CryptoWalletResponseDto[] = wallets.map(
-      (wallet) => ({
-        id: wallet.id,
-        type: wallet.type,
-        address: wallet.address,
-        userId: wallet.userId,
-        createdAt: wallet.createdAt,
-        updatedAt: wallet.updatedAt,
-      }),
+      (wallet) => this.mapToCryptoWalletResponse(wallet),
     );
 
     const totalPages = Math.ceil(totalItems / limit);
@@ -72,6 +92,10 @@ export class CryptoWalletService {
   }
 
   async getCryptoWalletById(walletId: string): Promise<CryptoWalletResponseDto> {
+    if (!walletId) {
+      throw new BadRequestException('Wallet ID is required');
+    }
+
     const wallet = await this.prisma.cryptoWallet.findUnique({
       where: { id: walletId },
     });
@@ -80,13 +104,61 @@ export class CryptoWalletService {
       throw new NotFoundException(`Wallet with ID ${walletId} not found`);
     }
 
-    return wallet;
+    return this.mapToCryptoWalletResponse(wallet);
   }
 
+  async getAllCryptoWalletsByUserIdentifier(
+    userId: string,
+    page: number,
+    limit: number,
+  ): Promise<GetAllCryptoWalletsResponseDto> {
+    this.validatePagination(page, limit);
+
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    const totalItems = await this.prisma.cryptoWallet.count({
+      where: { userId },
+    });
+
+    if (totalItems === 0) {
+      throw new NotFoundException(`No wallets found for user ID ${userId}`);
+    }
+
+    const wallets = await this.prisma.cryptoWallet.findMany({
+      where: { userId },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    const walletResponseDtos: CryptoWalletResponseDto[] = wallets.map(
+      (wallet) => this.mapToCryptoWalletResponse(wallet),
+    );
+
+    const totalPages = Math.ceil(totalItems / limit);
+    return {
+      success: true,
+      message: `Crypto wallets for user ID ${userId} fetched successfully`,
+      data: walletResponseDtos,
+      pagination: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+        perPage: limit,
+      },
+    };
+  }
+
+  // Update Methods
   async updateCryptoWalletById(
     walletId: string,
     updateData: UpdateCryptoWalletDto,
   ): Promise<CryptoWalletResponseDto> {
+    if (!walletId) {
+      throw new BadRequestException('Wallet ID is required');
+    }
+
     const wallet = await this.prisma.cryptoWallet.findUnique({
       where: { id: walletId },
     });
@@ -100,13 +172,18 @@ export class CryptoWalletService {
       data: updateData,
     });
 
-    return updatedWallet;
+    return this.mapToCryptoWalletResponse(updatedWallet);
   }
 
+  // Delete Methods
   async deleteCryptoWalletById(walletId: string): Promise<{
     success: boolean;
     message: string;
   }> {
+    if (!walletId) {
+      throw new BadRequestException('Wallet ID is required');
+    }
+
     const wallet = await this.prisma.cryptoWallet.findUnique({
       where: { id: walletId },
     });
@@ -122,38 +199,6 @@ export class CryptoWalletService {
     return {
       success: true,
       message: `Wallet with ID ${walletId} deleted successfully`,
-    };
-  }
-
-  async getAllCryptoWalletsByUserIdentifier(
-    userId: string,
-    page: number,
-    limit: number,
-  ): Promise<GetAllCryptoWalletsResponseDto> {
-    const totalItems = await this.prisma.cryptoWallet.count({
-      where: { userId },
-    });
-
-    if (totalItems === 0) {
-      throw new NotFoundException(`No wallets found for user ID ${userId}`);
-    }
-
-    const wallets = await this.prisma.cryptoWallet.findMany({
-      where: { userId },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
-
-    return {
-      success: true,
-      message: `Crypto wallets for user ID ${userId} fetched successfully`,
-      data: wallets,
-      pagination: {
-        totalItems,
-        totalPages: Math.ceil(totalItems / limit),
-        currentPage: page,
-        perPage: limit,
-      },
     };
   }
 }
