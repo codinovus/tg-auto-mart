@@ -14,7 +14,7 @@ export class OrderResponseDto {
   productId: string;
   quantity: number;
   total: number;
-  discountAmount?: number;
+  discountAmount?: number | null;;
   status: OrderStatus;
   payment?: PaymentResponseDto;
   promoCode?: PromoCodeResponseDto;
