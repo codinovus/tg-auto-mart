@@ -83,7 +83,7 @@ export class UserService {
       const user = await prisma.user.create({
         data: {
           username: userRegistrationData.username,
-          password: hashedPassword, // Store the hashed password
+          password: hashedPassword,
           telegramId: userRegistrationData.telegramId,
           role: userRegistrationData.role || 'CUSTOMER',
         },
