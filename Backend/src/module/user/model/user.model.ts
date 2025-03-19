@@ -16,6 +16,7 @@ export class UserResponseDto {
     role: string;
     createdAt: Date;
     updatedAt: Date;
+    password?: string;
     wallet?: WalletResponseDto;
     orders?: OrderResponseDto[];
     balance: number;
@@ -94,3 +95,49 @@ export class UserProfileDto {
     disputeCount?: number;
     storeCount?: number;
 }
+
+export class LoginDto {
+    username: string;
+    password: string;
+  }
+  
+  export class RegisterDto {
+    username: string;
+    password: string;
+    telegramId?: string;
+    role?: string;
+  }
+  
+  export class AuthResponseDto {
+    success: boolean;
+    message: string;
+    data: {
+      token: string;
+      user: {
+        id: string;
+        username: string;
+        role: string;
+      }
+    };
+    timestamp: string;
+  
+    constructor(success: boolean, message: string, token: string, user: any) {
+      this.success = success;
+      this.message = message;
+      this.data = {
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role
+        }
+      };
+      this.timestamp = new Date().toISOString();
+    }
+  }
+
+  export interface JwtPayload {
+    sub: string; // User ID
+    username: string;
+    role: string;
+  }

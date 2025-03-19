@@ -12,6 +12,8 @@ import {
   UserProfileDto,
   UserResponseDto,
 } from './model/user.model';
+import * as bcrypt from 'bcrypt';
+
 
 @Injectable()
 export class UserService {
@@ -45,32 +47,54 @@ export class UserService {
   }
 
   // Create Methods
-  async registerUser (userData: RegisterUserModel) {
-    const existingUser  = await this.prisma.user.findUnique({
-      where: { telegramId: userData.telegramId },
-    });
-
-    if (existingUser ) {
-      return existingUser ;
+  async registerUser(userRegistrationData: RegisterUserModel) {
+    if (userRegistrationData.telegramId) {
+      const existingUser = await this.prisma.user.findUnique({
+        where: { telegramId: userRegistrationData.telegramId },
+      });
+  
+      if (existingUser) {
+        if (!existingUser.password && userRegistrationData.password) {
+          const hashedPassword = await bcrypt.hash(userRegistrationData.password, 10);
+          const updatedUser = await this.prisma.user.update({
+            where: { id: existingUser.id },
+            data: { password: hashedPassword }
+          });
+          return updatedUser;
+        }
+        
+        return existingUser;
+      }
     }
-
+    if (userRegistrationData.username) {
+      const existingUserByUsername = await this.prisma.user.findUnique({
+        where: { username: userRegistrationData.username },
+      });
+  
+      if (existingUserByUsername) {
+        throw new BadRequestException('Username already exists');
+      }
+    }
     return this.prisma.$transaction(async (prisma) => {
+      let hashedPassword: string | null = null;
+      if (userRegistrationData.password) {
+        hashedPassword = await bcrypt.hash(userRegistrationData.password, 10);
+      }
       const user = await prisma.user.create({
         data: {
-          username: userData.username,
-          password: userData.password,
-          telegramId: userData.telegramId,
-          role: userData.role || 'CUSTOMER',
+          username: userRegistrationData.username,
+          password: hashedPassword, // Store the hashed password
+          telegramId: userRegistrationData.telegramId,
+          role: userRegistrationData.role || 'CUSTOMER',
         },
       });
-
+  
       const wallet = await prisma.wallet.create({
         data: {
           userId: user.id,
           balance: 0,
         },
       });
-
       return { user, wallet };
     });
   }
@@ -214,5 +238,38 @@ export class UserService {
     }
 
     return this.mapToUserResponseDto(user);
+  }
+
+  async findOneByUsername(username: string): Promise<any> {
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+      include: {
+        wallet: true,
+        orders: true,
+      },
+    });
+  
+    if (!user) {
+      return null;
+    }
+    return user;
+  }
+
+  async findOneByUsernameForAuth(username: string): Promise<any> {
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+      select: {
+        id: true,
+        username: true,
+        password: true,
+        role: true,
+        telegramId: true,
+      },
+    });
+  
+    if (!user) {
+      return null;
+    }
+    return user;
   }
 }

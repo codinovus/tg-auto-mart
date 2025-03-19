@@ -18,6 +18,7 @@ import { DisputeModule } from './module/dispute/dispute.module';
 import { PaymentModule } from './module/payment/payment.module';
 import { PromoCodeModule } from './module/promo-code/promo-code.module';
 import { TransactionModule } from './module/transaction/transaction.module';
+import { AuthModule } from './shared/auth/auth.module';
 
 @Module({
   imports: [
@@ -39,7 +40,9 @@ import { TransactionModule } from './module/transaction/transaction.module';
     PromoCodeModule,
     ReferralModule,
     TransactionModule,
-    WalletModule
+    WalletModule,
+    AuthModule,
+    ConfigModule
   ],
   controllers: [AppController],
   providers: [AppService],
