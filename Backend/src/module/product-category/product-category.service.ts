@@ -71,19 +71,33 @@ export class ProductCategoryService {
   async getAllProductCategories(
     page: number,
     limit: number,
+    searchQuery?: string,
   ): Promise<GetAllProductCategoriesResponseDto> {
-    this.validatePagination(page, limit);
-
-    const totalItems = await this.prisma.productCategory.count();
+    const totalItems = await this.prisma.productCategory.count({
+      where: { name: { contains: searchQuery, mode: 'insensitive' } },
+    });
+  
     const categories = await this.prisma.productCategory.findMany({
+      where: { name: { contains: searchQuery, mode: 'insensitive' } },
       skip: (page - 1) * limit,
       take: limit,
     });
-
-    const categoryResponseDtos: ProductCategoryResponseDto[] = categories.map(
-      (category) => this.mapToProductCategoryResponseDto(category),
+    const categoryResponseDtos: ProductCategoryResponseDto[] = await Promise.all(
+      categories.map(async (category) => {
+        const productCount = await this.prisma.product.count({
+          where: { categoryId: category.id },
+        });
+  
+        return new ProductCategoryResponseDto(
+          category.id,
+          category.name,
+          category.createdAt,
+          category.updatedAt,
+          productCount
+        );
+      }),
     );
-
+  
     const totalPages = Math.ceil(totalItems / limit);
     return new GetAllProductCategoriesResponseDto(
       true,
@@ -97,7 +111,7 @@ export class ProductCategoryService {
       },
     );
   }
-
+  
   async getProductCategoryById(
     categoryId: string,
   ): Promise<ProductCategoryResponseDto> {

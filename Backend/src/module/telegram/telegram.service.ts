@@ -467,6 +467,13 @@ export class TelegramService implements OnModuleInit {
         return;
       }
 
+      if (data.startsWith('categories_')) {
+        const page = parseInt(data.split('_')[1], 10);
+        await this.sendProductCategories(chatId, page);
+        return;
+      }
+  
+
       if (data.startsWith('product_page_')) {
         const [_, categoryId, direction] = data.split('_');
         let currentPage = this.currentPage.get(chatId) || 1;
@@ -624,18 +631,20 @@ export class TelegramService implements OnModuleInit {
 
   private async sendProductCategories(chatId: number, page: number) {
     try {
-      const response =
-        await this.productCategoryService.getAllProductCategories(page, 5);
+      const response = await this.productCategoryService.getAllProductCategories(page, 5);
       if (!response.data.length) {
         return this.bot.sendMessage(chatId, '❌ No categories available.');
       }
-
-      const buttons = response.data.map((category) => [
-        {
-          text: `${category.name} (${category.productCount})`,
-          callback_data: `category_${category.id}`,
-        },
-      ]);
+  
+      const buttons = response.data.map((category) => {
+        return [
+          {
+            text: `${category.name} (${category.productCount})`,
+            callback_data: `category_${category.id}`,
+          },
+        ];
+      });
+  
       if (page > 1 || page < response.pagination.totalPages) {
         buttons.push([
           ...(page > 1
@@ -655,7 +664,13 @@ export class TelegramService implements OnModuleInit {
           reply_markup: { inline_keyboard: buttons },
         },
       );
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
+      setTimeout(async () => {
+        await this.bot.deleteMessage(chatId, categoryMessage.message_id);
+      }, 5000);
+  
     } catch (error) {
+      console.error('Error fetching categories:', error);
       this.bot.sendMessage(chatId, '❌ Error fetching categories.');
     }
   }
@@ -926,11 +941,6 @@ export class TelegramService implements OnModuleInit {
   private async handleUserWallet(msg: TelegramBot.Message) {
     const chatId = msg.chat.id;
     const telegramId = msg.from.id.toString();
-
-    console.log(
-      `Received request for wallet information from user: ${telegramId}`,
-    );
-
     try {
       const wallet = await this.walletservice.getWalletByTelegramId(telegramId);
       const balance = wallet.balance.toFixed(2).replace('.', '\\.');
