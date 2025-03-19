@@ -1,7 +1,19 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
-import { Body, Controller, Get, Post, UseGuards, Request } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto, AuthResponseDto, UserProfileDto } from 'src/module/user/model/user.model';
+import {
+  LoginDto,
+  RegisterDto,
+  AuthResponseDto,
+  UserProfileDto,
+} from 'src/module/user/model/user.model';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
@@ -19,7 +31,9 @@ export class AuthController {
   }
 
   @Post('telegram-login')
-  async loginWithTelegram(@Body() { telegramId }: { telegramId: string }): Promise<AuthResponseDto> {
+  async loginWithTelegram(
+    @Body() { telegramId }: { telegramId: string },
+  ): Promise<AuthResponseDto> {
     return this.authService.loginWithTelegram(telegramId);
   }
 
