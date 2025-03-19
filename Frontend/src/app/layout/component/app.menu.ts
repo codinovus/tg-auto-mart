@@ -22,14 +22,50 @@ export class AppMenu {
         this.model = [
             {
                 label: 'Home',
-                items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', routerLink: ['/'] }]
+                items: [{ label: 'Dashboard', icon: 'fas fa-home', routerLink: ['/'] }]
             },
             {
-                label: 'UI Components',
+                label: 'Users Management',
                 items: [
-                    { label: 'Form Layout', icon: 'pi pi-fw pi-id-card', routerLink: ['/uikit/formlayout'] },
+                    { label: 'Form Layout', icon: 'fas fa-id-card', routerLink: ['/uikit/formlayout'] },
                 ]
-            }
+            },
+            {
+                label: 'Wallet & Finances',
+                items: [
+                    { label: 'Form Layout', icon: 'fas fa-id-card', routerLink: ['/uikit/formlayout'] },
+                ]
+            },
+            {
+                label: 'Products',
+                items: [
+                    { label: 'Form Layout', icon: 'fas fa-id-card', routerLink: ['/uikit/formlayout'] },
+                ]
+            },
+            {
+                label: 'Orders & Payments',
+                items: [
+                    { label: 'Form Layout', icon: 'fas fa-id-card', routerLink: ['/uikit/formlayout'] },
+                ]
+            },
+            {
+                label: 'Disputes & Support',
+                items: [
+                    { label: 'Form Layout', icon: 'fas fa-id-card', routerLink: ['/uikit/formlayout'] },
+                ]
+            },
+            {
+                label: 'Referrals & Promotions',
+                items: [
+                    { label: 'Form Layout', icon: 'fas fa-id-card', routerLink: ['/uikit/formlayout'] },
+                ]
+            },
+            {
+                label: 'Developer Management',
+                items: [
+                    { label: 'Form Layout', icon: 'fas fa-id-card', routerLink: ['/uikit/formlayout'] },
+                ]
+            },
         ];
     }
 }
