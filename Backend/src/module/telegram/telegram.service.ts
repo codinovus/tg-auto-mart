@@ -108,7 +108,7 @@ export class TelegramService implements OnModuleInit {
     productId: string,
   ) {
     try {
-      const user = await this.getUserByTelegramId(telegramId);
+      const user = await this.getUserByTelegramId(telegramId.toString());
       if (!user) {
         return this.sendMessage(
           chatId,
@@ -116,7 +116,7 @@ export class TelegramService implements OnModuleInit {
         );
       }
 
-      const product = await this.getProductById(productId);
+      const product = await this.getProductById(productId.toString());
       if (!product) {
         return this.sendMessage(
           chatId,
@@ -130,7 +130,7 @@ export class TelegramService implements OnModuleInit {
         );
       }
 
-      const userWallet = await this.getUserWallet(telegramId);
+      const userWallet = await this.getUserWallet(telegramId.toString());
       if (userWallet.balance < product.price) {
         return this.handleInsufficientBalance(
           chatId,
@@ -140,16 +140,16 @@ export class TelegramService implements OnModuleInit {
         );
       }
 
-      const order = await this.createOrder(user.id as string, productId);
+      const order = await this.createOrder(String(user.id), productId);
       await this.updateWalletBalance(
-        user.id as string,
+        String(user.id),
         userWallet.id,
         order.total,
       );
       await this.createPayment(order.id, order.total);
       await this.createTransaction(
         userWallet.id,
-        user.id as string,
+        String(user.id),
         order.id,
         order.total,
         product.name,
@@ -462,7 +462,7 @@ export class TelegramService implements OnModuleInit {
 
       if (data.startsWith('category_')) {
         const categoryId = data.split('_')[1];
-        this.currentPage.set(chatId, 1);
+        // this.currentPage.set(chatId, 1); // Commenting out to retain current page
         await this.sendProductsByCategory(chatId, categoryId, 1);
         return;
       }
@@ -476,10 +476,10 @@ export class TelegramService implements OnModuleInit {
 
       if (data.startsWith('product_page_')) {
         const [_, categoryId, direction] = data.split('_');
-        let currentPage = this.currentPage.get(chatId) || 1;
+        let currentPage = this.currentPage.get(chatId) || 1; // Retain current page
         currentPage =
           direction === 'next' ? currentPage + 1 : Math.max(1, currentPage - 1);
-        this.currentPage.set(chatId, currentPage);
+        // this.currentPage.set(chatId, currentPage); // Commenting out to retain current page
         await this.sendProductsByCategory(chatId, categoryId, currentPage);
         return;
       }
