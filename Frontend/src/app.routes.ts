@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { AppLayout } from './app/layout/component/app.layout';
 import { Dashboard } from './app/pages/dashboard/dashboard';
 import { Notfound } from './app/pages/notfound/notfound';
+import { CreatupdateuserComponent } from './app/pages/user/creatupdateuser/creatupdateuser.component';
 
 export const appRoutes: Routes = [
     {

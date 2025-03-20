@@ -1,1 +1,38 @@
-<p>creatupdateuser works!</p>
+<div class="card p-fluid">
+    <h5>{{ isUpdateMode ? 'Update User' : 'Create New User' }}</h5>
+    <form [formGroup]="userForm" (ngSubmit)="onSubmit()">
+      <div class="p-formgrid grid">
+        <!-- Username -->
+        <div class="field col">
+          <label htmlFor="username">Username *</label>
+          <input pInputText id="username" type="text" formControlName="username" />
+          <p-message *ngIf="usernameControl?.invalid && submitted" severity="error" text="Username is required and must be at least 3 characters."></p-message>
+        </div>
+
+        <!-- Password -->
+        <div class="field col" *ngIf="!isUpdateMode">
+          <label htmlFor="password">Password *</label>
+          <input pInputText id="password" type="password" formControlName="password" />
+          <p-message *ngIf="passwordControl?.invalid && submitted" severity="error" text="Password is required and must be at least 6 characters."></p-message>
+        </div>
+      </div>
+
+      <div class="p-formgrid grid">
+        <!-- Telegram ID -->
+        <div class="field col">
+          <label htmlFor="telegramId">Telegram ID</label>
+          <input pInputText id="telegramId" type="text" formControlName="telegramId" />
+        </div>
+
+        <!-- Role -->
+        <div class="field col">
+          <label htmlFor="role">Role</label>
+          <p-dropdown [options]="roles" formControlName="role" placeholder="Select a Role" [style]="{'width':'100%'}"></p-dropdown>
+        </div>
+      </div>
+
+      <div class="flex justify-content-end mt-4">
+        <button pButton type="submit" label="Submit" [disabled]="userForm.invalid"></button>
+      </div>
+    </form>
+  </div>
