@@ -1,0 +1,50 @@
+<div class="card flex flex-col gap-4">
+    <h3 class="font-semibold text-xl m-0">
+      <strong>{{ isUpdateMode ? 'Update Crypto Wallet' : 'Create New Crypto Wallet' }}</strong>
+    </h3>
+    <form [formGroup]="walletForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+      <hr />
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="type">Cryptocurrency Type <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="cryptoTypes"
+            formControlName="type"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Cryptocurrency Type"
+            class="w-full">
+          </p-select>
+          <p-message *ngIf="typeControl?.invalid && submitted" severity="error" text="Cryptocurrency type is required."></p-message>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="address">Wallet Address <span class="asterisk-imp">*</span></label>
+          <input pInputText id="address" type="text" formControlName="address" />
+          <p-message *ngIf="addressControl?.invalid && submitted" severity="error" text="A valid wallet address is required (minimum 26 characters)."></p-message>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-6" *ngIf="!isUpdateMode">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="userId">User <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="users"
+            formControlName="userId"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select User"
+            class="w-full">
+          </p-select>
+          <p-message *ngIf="userIdControl?.invalid && submitted" severity="error" text="User is required."></p-message>
+        </div>
+      </div>
+      <div class="flex flex-col grow basis-0 gap-2">
+        <button
+          pButton
+          type="submit"
+          [icon]="isUpdateMode ? 'fas fa-save' : 'fas fa-plus'"
+          [label]="isUpdateMode ? 'Update Wallet' : 'Create Wallet'"
+          [disabled]="loading">
+        </button>
+      </div>
+    </form>
+  </div>

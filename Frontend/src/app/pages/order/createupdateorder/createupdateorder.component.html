@@ -1,0 +1,98 @@
+<div class="card flex flex-col gap-4">
+    <h3 class="font-semibold text-xl m-0">
+      <strong>{{ isUpdateMode ? 'Update Order' : 'Create New Order' }}</strong>
+    </h3>
+    <form [formGroup]="orderForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+      <hr />
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+            <label for="userId">Customer <span class="asterisk-imp">*</span></label>
+            <p-select
+              [options]="users"
+              formControlName="userId"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Select Customer"
+              class="w-full"
+              [disabled]="isUpdateMode">
+            </p-select>
+            <p-message *ngIf="userIdControl?.invalid && submitted" severity="error" text="Customer is required."></p-message>
+          </div>
+
+          <div class="flex flex-col grow basis-0 gap-2">
+            <label for="productId">Product <span class="asterisk-imp">*</span></label>
+            <p-select
+              [options]="products"
+              formControlName="productId"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Select Product"
+              class="w-full"
+              [disabled]="isUpdateMode">
+            </p-select>
+            <p-message *ngIf="productIdControl?.invalid && submitted" severity="error" text="Product is required."></p-message>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-6">
+          <div class="flex flex-col grow basis-0 gap-2">
+            <label for="quantity">Quantity <span class="asterisk-imp">*</span></label>
+            <p-inputNumber
+              formControlName="quantity"
+              [showButtons]="true"
+              [min]="1"
+              placeholder="Enter quantity"
+              class="w-full">
+            </p-inputNumber>
+            <p-message *ngIf="quantityControl?.invalid && submitted" severity="error" text="Quantity is required and must be at least 1."></p-message>
+          </div>
+
+          <div class="flex flex-col grow basis-0 gap-2">
+            <label for="promoCodeId">Promo Code</label>
+            <p-select
+              [options]="promoCodes"
+              formControlName="promoCodeId"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Select Promo Code (Optional)"
+              class="w-full">
+            </p-select>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-6" *ngIf="isUpdateMode">
+          <div class="flex flex-col grow basis-0 gap-2">
+            <label for="status">Status <span class="asterisk-imp">*</span></label>
+            <p-select
+              [options]="statuses"
+              formControlName="status"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Select Status"
+              class="w-full">
+            </p-select>
+            <p-message *ngIf="statusControl?.invalid && submitted" severity="error" text="Status is required."></p-message>
+          </div>
+
+          <div class="flex flex-col grow basis-0 gap-2" *ngIf="order">
+            <label>Order Details</label>
+            <div class="p-3 bg-gray-100 rounded">
+              <p class="m-0"><strong>Created:</strong> {{ order.createdAt | date:'medium' }}</p>
+              <p class="m-0"><strong>Updated:</strong> {{ order.updatedAt | date:'medium' }}</p>
+              <p class="m-0"><strong>Total:</strong> ${{ order.total }}</p>
+              <p class="m-0" *ngIf="order.discountAmount"><strong>Discount:</strong> ${{ order.discountAmount }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col grow basis-0 gap-2 mt-4">
+          <button
+          pButton
+          type="submit"
+          [icon]="isUpdateMode ? 'fas fa-save' : 'fas fa-plus'"
+          [label]="isUpdateMode ? 'Update Order' : 'Create Order'"
+          [disabled]="loading">
+        </button>
+      </div>
+    </form>
+  </div>

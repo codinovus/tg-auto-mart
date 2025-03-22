@@ -1,0 +1,70 @@
+<div class="card flex flex-col gap-4">
+    <h3 class="font-semibold text-xl m-0">
+      <strong>{{ isUpdateMode ? 'Update Product' : 'Create New Product' }}</strong>
+    </h3>
+    <form [formGroup]="productForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+      <hr />
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="name">Product Name <span class="asterisk-imp">*</span></label>
+          <input pInputText id="name" type="text" formControlName="name" />
+          <p-message *ngIf="nameControl?.invalid && submitted" severity="error" text="Product name is required."></p-message>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="description">Description</label>
+          <textarea pTextarea id="description" formControlName="description"></textarea>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="price">Price <span class="asterisk-imp">*</span></label>
+          <p-inputnumber id="price" formControlName="price" />
+          <p-message *ngIf="priceControl?.invalid && submitted" severity="error" text="Price is required."></p-message>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="stock">Stock <span class="asterisk-imp">*</span></label>
+          <p-inputnumber id="stock" formControlName="stock" />
+          <p-message *ngIf="stockControl?.invalid && submitted" severity="error" text="Stock is required."></p-message>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="storeId">Store <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="stores"
+            formControlName="storeId"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Store"
+            class="w-full">
+          </p-select>
+          <p-message *ngIf="storeIdControl?.invalid && submitted" severity="error" text="Store is required."></p-message>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="categoryId">Category <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="categories"
+            formControlName="categoryId"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Category"
+            class="w-full">
+          </p-select>
+          <p-message *ngIf="categoryIdControl?.invalid && submitted" severity="error" text="Category is required."></p-message>
+        </div>
+      </div>
+      <div class="flex flex-col grow basis-0 gap-2">
+        <label for="autoDeliver">Auto Deliver</label>
+        <p-checkbox formControlName="autoDeliver" binary="true" />
+      </div>
+      <div class="flex flex-col grow basis-0 gap-2">
+        <button
+          pButton
+          type="submit"
+          [icon]="isUpdateMode ? 'fas fa-save' : 'fas fa-plus'"
+          [label]="isUpdateMode ? 'Update Product' : 'Create Product'"
+          [disabled]="loading">
+        </button>
+      </div>
+    </form>
+  </div>

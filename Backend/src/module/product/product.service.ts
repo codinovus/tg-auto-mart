@@ -84,7 +84,7 @@ export class ProductService {
     storeId?: string,
   ): Promise<GetAllProductsResponseDto> {
     this.validatePagination(page, limit);
-
+  
     const filters: any = {};
     if (categoryId) {
       filters.categoryId = categoryId;
@@ -92,19 +92,19 @@ export class ProductService {
     if (storeId) {
       filters.storeId = storeId;
     }
-
+  
     const totalItems = await this.prisma.product.count({ where: filters });
-
+  
     const products = await this.prisma.product.findMany({
       where: filters,
       skip: (page - 1) * limit,
-      take: limit,
+      take: limit, // Ensure limit is a number
     });
-
+  
     const productResponseDtos: ProductResponseDto[] = products.map((product) => this.mapToProductResponseDto(product));
-
+  
     const totalPages = Math.ceil(totalItems / limit);
-
+  
     return new GetAllProductsResponseDto(
       true,
       'Products fetched successfully',

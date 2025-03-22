@@ -1,0 +1,36 @@
+<div class="card flex flex-col gap-4">
+    <h3 class="font-semibold text-xl m-0">
+      <strong>{{ isUpdateMode ? 'Update Store' : 'Create New Store' }}</strong>
+    </h3>
+    <form [formGroup]="storeForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+      <hr />
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="name">Store Name <span class="asterisk-imp">*</span></label>
+          <input pInputText id="name" type="text" formControlName="name" />
+          <p-message *ngIf="nameControl?.invalid && submitted" severity="error" text="Store name is required."></p-message>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2" *ngIf="!isUpdateMode">
+            <label for="ownerId">Store Owner <span class="asterisk-imp">*</span></label>
+            <p-select
+              [options]="owners"
+              formControlName="ownerId"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Select an Owner"
+              class="w-full">
+            </p-select>
+            <p-message *ngIf="ownerIdControl?.invalid && submitted" severity="error" text="Store owner is required."></p-message>
+          </div>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2">
+          <button
+            pButton
+            type="submit"
+            [icon]="isUpdateMode ? 'fas fa-save' : 'fas fa-plus'"
+            [label]="isUpdateMode ? 'Update' : 'Create'"
+            [disabled]="loading">
+          </button>
+        </div>
+      </form>
+    </div>

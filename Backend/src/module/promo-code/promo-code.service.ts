@@ -74,17 +74,17 @@ export class PromoCodeService {
   // Get Methods
   async getAllPromoCodes(page: number, limit: number): Promise<GetAllPromoCodesResponseDto> {
     this.validatePagination(page, limit);
-
+  
     const totalItems = await this.prisma.promoCode.count();
     const promoCodes = await this.prisma.promoCode.findMany({
       skip: (page - 1) * limit,
-      take: limit,
+      take: limit, // Ensure limit is a number
     });
-
+  
     const promoCodeResponseDtos: PromoCodeResponseDto[] = promoCodes.map(promoCode =>
       this.mapToPromoCodeResponseDto(promoCode),
     );
-
+  
     const totalPages = Math.ceil(totalItems / limit);
     return new GetAllPromoCodesResponseDto(
       true,

@@ -1,0 +1,48 @@
+<div class="card flex flex-col gap-4">
+    <h3 class="font-semibold text-xl m-0">
+      <strong>{{ isUpdateMode ? 'Update Referral' : 'Create New Referral' }}</strong>
+    </h3>
+    <form [formGroup]="referralForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+      <hr />
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="referredById">Referred By <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="users"
+            formControlName="referredById"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Referred By"
+            class="w-full">
+          </p-select>
+          <p-message *ngIf="referralForm.get('referredById')?.invalid && submitted" severity="error" text="Referred By is required."></p-message>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="referredUser Id">Referred User <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="users"
+            formControlName="referredUser Id"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Referred User"
+            class="w-full">
+          </p-select>
+          <p-message *ngIf="referralForm.get('referredUser Id')?.invalid && submitted" severity="error" text="Referred User is required."></p-message>
+        </div>
+      </div>
+      <div class="flex flex-col grow basis-0 gap-2">
+        <label for="rewardAmount">Reward Amount</label>
+        <input pInputText id="rewardAmount" type="number" formControlName="rewardAmount" />
+        <p-message *ngIf="referralForm.get('rewardAmount')?.invalid && submitted" severity="error" text="Reward Amount must be a positive number."></p-message>
+      </div>
+      <div class="flex flex-col grow basis-0 gap-2">
+        <button
+          pButton
+          type="submit"
+          [icon]="isUpdateMode ? 'fas fa-save' : 'fas fa-plus'"
+          [label]="isUpdateMode ? 'Update Referral' : 'Create Referral'"
+          [disabled]="loading">
+        </button>
+      </div>
+    </form>
+  </div>

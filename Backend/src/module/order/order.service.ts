@@ -20,6 +20,7 @@ export class OrderService {
   }
 
   private async validateProductExists(productId: string): Promise<void> {
+    // All IDs are strings (UUIDs), so no conversion needed
     const product = await this.prisma.product.findUnique({ where: { id: productId } });
     if (!product) {
       throw new NotFoundException(`Product with ID ${productId} not found`);
@@ -29,7 +30,7 @@ export class OrderService {
   private async validateUserExists(userId: string): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      throw new NotFoundException(`User  with ID ${userId} not found`);
+      throw new NotFoundException(`User with ID ${userId} not found`);
     }
   }
 
@@ -62,36 +63,79 @@ export class OrderService {
   // Create Methods
   async createOrder(createOrderDto: CreateOrderDto): Promise<OrderResponseDto> {
     const { userId, productId, quantity = 1, promoCodeId } = createOrderDto;
+    
+    await this.validateProductExists(productId);
+    await this.validateUserExists(userId);
+    
+    if (promoCodeId) {
+      const promoCode = await this.prisma.promoCode.findUnique({
+        where: { id: promoCodeId },
+      });
+      
+      if (!promoCode) {
+        throw new NotFoundException(`PromoCode with ID ${promoCodeId} not found`);
+      }
+    }
+    
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
     });
-
+  
+    // Add null check
     if (!product) {
       throw new NotFoundException(`Product with ID ${productId} not found`);
     }
-
+  
     const total = product.price * quantity;
-
+  
     let discountAmount = 0;
     if (promoCodeId) {
       const promoCode = await this.prisma.promoCode.findUnique({
         where: { id: promoCodeId },
       });
-
+  
       if (promoCode && promoCode.isActive && new Date() < promoCode.expiresAt) {
         discountAmount = (total * promoCode.discount) / 100;
       }
     }
+  
+    try {
+      const order = await this.prisma.order.create({
+        data: {
+          userId,
+          productId,
+          quantity,
+          promoCodeId,
+          total,
+          discountAmount: discountAmount > 0 ? discountAmount : 0,
+        },
+        include: {
+          product: true,
+          payment: true,
+          promoCode: true,
+          disputes: true,
+          Transaction: true,
+        },
+      });
+  
+      return this.mapToOrderResponseDto(order);
+    } catch (error) {
+      throw new BadRequestException('Error creating order: ' + error.message);
+    }
+  }
 
-    const order = await this.prisma.order.create({
-      data: {
-        userId,
-        productId,
-        quantity,
-        promoCodeId,
-        total,
-        discountAmount: discountAmount > 0 ? discountAmount : 0,
-      },
+  // Get Methods
+  async getAllOrders(page: number, limit: number): Promise<GetAllOrdersResponseDto> {
+    // Convert page and limit to numbers in case they come as strings
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    
+    this.validatePagination(pageNum, limitNum);
+  
+    const totalItems = await this.prisma.order.count();
+    const orders = await this.prisma.order.findMany({
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum, // Now it's a number
       include: {
         product: true,
         payment: true,
@@ -100,36 +144,16 @@ export class OrderService {
         Transaction: true,
       },
     });
-
-    return this.mapToOrderResponseDto(order);
-  }
-
-  // Get Methods
-  async getAllOrders(page: number, limit: number): Promise<GetAllOrdersResponseDto> {
-    this.validatePagination(page, limit);
-
-    const totalItems = await this.prisma.order.count();
-    const orders = await this.prisma.order.findMany({
-      skip: (page - 1) * limit,
-      take: limit,
-      include: {
-        product: true,
-        payment: true,
-        promoCode: true,
-        disputes: true,
-        Transaction: true,
-      },
- });
-
+  
     return new GetAllOrdersResponseDto(
       true,
       'Orders fetched successfully',
       orders.map((order) => this.mapToOrderResponseDto(order)),
       {
         totalItems,
-        totalPages: Math.ceil(totalItems / limit),
-        currentPage: page,
-        perPage: limit,
+        totalPages: Math.ceil(totalItems / limitNum),
+        currentPage: pageNum,
+        perPage: limitNum,
       },
     );
   }

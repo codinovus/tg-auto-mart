@@ -1,0 +1,73 @@
+<div class="card flex flex-col gap-4">
+    <h3 class="font-semibold text-xl m-0">
+      <strong>{{ isUpdateMode ? 'Update Payment' : 'Create New Payment' }}</strong>
+    </h3>
+    <form [formGroup]="paymentForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+      <hr />
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+            <label for="orderId">Order ID <span class="asterisk-imp">*</span></label>
+            <p-inputText
+              formControlName="orderId"
+              placeholder="Enter Order ID"
+              class="w-full">
+            </p-inputText>
+            <p-message *ngIf="paymentForm.get('orderId')?.invalid && paymentForm.get('orderId')?.touched"
+                       severity="error"
+                       text="Order ID is required."></p-message>
+          </div>
+
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="amount">Amount <span class="asterisk-imp">*</span></label>
+          <p-inputNumber
+            formControlName="amount"
+            placeholder="Enter Amount"
+            class="w-full"
+            [showButtons]="true"
+            [min]="0">
+          </p-inputNumber>
+          <p-message *ngIf="paymentForm.get('amount')?.invalid && paymentForm.get('amount')?.touched"
+                     severity="error"
+                     text="Amount is required and must be a positive number."></p-message>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="method">Payment Method <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="methods"
+            formControlName="method"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Payment Method"
+            class="w-full">
+          </p-select>
+          <p-message *ngIf="paymentForm.get('method')?.invalid && paymentForm.get('method')?.touched"
+                     severity="error"
+                     text="Payment method is required."></p-message>
+        </div>
+
+        <div class="flex flex-col grow basis-0 gap-2" *ngIf="isUpdateMode">
+          <label for="status">Payment Status</label>
+          <p-select
+            [options]="statuses"
+            formControlName="status"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Payment Status"
+            class="w-full">
+          </p-select>
+        </div>
+      </div>
+      <div class="flex flex-col grow basis-0 gap-2 mt-4">
+        <button
+          pButton
+          type="submit"
+          [icon]="isUpdateMode ? 'fas fa-save' : 'fas fa-plus'"
+          [label]="isUpdateMode ? 'Update Payment' : 'Create Payment'"
+          [disabled]="loading">
+        </button>
+      </div>
+    </form>
+  </div>

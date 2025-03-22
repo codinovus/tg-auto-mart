@@ -1,0 +1,67 @@
+<div class="card flex flex-col gap-4">
+    <h3 class="font-semibold text-xl m-0">
+      <strong>{{ isUpdateMode ? 'Update Deposit Request' : 'Create New Deposit Request' }}</strong>
+    </h3>
+    <form [formGroup]="depositRequestForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+      <hr />
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="userId">User <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="users"
+            formControlName="userId"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select User"
+            class="w-full"
+            [disabled]="isUpdateMode">
+          </p-select>
+          <p-message *ngIf="userIdControl?.invalid && submitted" severity="error" text="User is required."></p-message>
+        </div>
+
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="amount">Amount <span class="asterisk-imp">*</span></label>
+          <p-inputNumber
+            formControlName="amount"
+            mode="currency"
+            currency="USD"
+            [min]="1"
+            [disabled]="isUpdateMode"
+            class="w-full">
+          </p-inputNumber>
+          <p-message *ngIf="amountControl?.invalid && submitted" severity="error" text="Amount must be at least $1."></p-message>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="paymentLink">Payment Link <span class="asterisk-imp">*</span></label>
+          <input pInputText id="paymentLink" type="text" formControlName="paymentLink" [disabled]="isUpdateMode" />
+          <p-message *ngIf="paymentLinkControl?.invalid && submitted" severity="error" text="Payment link is required."></p-message>
+        </div>
+
+        <div class="flex flex-col grow basis-0 gap-2" *ngIf="isUpdateMode">
+          <label for="status">Status <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="statuses"
+            formControlName="status"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Status"
+            class="w-full">
+          </p-select>
+          <p-message *ngIf="statusControl?.invalid && submitted" severity="error" text="Status is required."></p-message>
+        </div>
+      </div>
+
+      <div class="flex flex-col grow basis-0 gap-2">
+        <button
+        pButton
+        type="submit"
+        [icon]="isUpdateMode ? 'fas fa-save' : 'fas fa-plus'"
+        [label]="isUpdateMode ? 'Update Deposit Request' : 'Create Deposit Request'"
+        [disabled]="loading">
+      </button>
+    </div>
+  </form>
+</div>

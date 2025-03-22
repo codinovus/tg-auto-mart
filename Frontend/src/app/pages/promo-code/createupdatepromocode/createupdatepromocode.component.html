@@ -1,0 +1,45 @@
+<div class="card flex flex-col gap-4">
+    <h3 class="font-semibold text-xl m-0">
+      <strong>{{ isUpdateMode ? 'Update Promo Code' : 'Create New Promo Code' }}</strong>
+    </h3>
+    <form [formGroup]="promoCodeForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+      <hr />
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="code">Promo Code <span class="asterisk-imp">*</span></label>
+          <input pInputText id="code" type="text" formControlName="code" />
+          <p-message *ngIf="codeControl?.invalid && submitted" severity="error" text="Promo code is required."></p-message>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="discount">Discount <span class="asterisk-imp">*</span></label>
+          <p-inputNumber id="discount" formControlName="discount" [min]="0" class="w-full"></p-inputNumber>
+          <p-message *ngIf="discountControl?.invalid && submitted" severity="error" text="Discount is required and must be non-negative."></p-message>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="expiresAt">Expires At <span class="asterisk-imp">*</span></label>
+          <p-calendar id="expiresAt" formControlName="expiresAt" [minDate]="minDate" [showIcon]="true" dateFormat="yy-mm-dd" class="w-full" [style]="{'width':'100%'}"></p-calendar>
+          <p-message *ngIf="expiresAtControl?.invalid && submitted" severity="error" text="Expiration date is required."></p-message>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="isActive">Is Active</label>
+          <div class="field-checkbox">
+            <p-checkbox formControlName="isActive" binary="true" inputId="isActive"></p-checkbox>
+            <label for="isActive" class="ml-2">Active</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-col grow basis-0 gap-2">
+        <button
+          pButton
+          type="submit"
+          [icon]="isUpdateMode ? 'fas fa-save' : 'fas fa-plus'"
+          [label]="isUpdateMode ? 'Update Promo Code' : 'Create Promo Code'"
+          [disabled]="loading">
+        </button>
+      </div>
+    </form>
+  </div>

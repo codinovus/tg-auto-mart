@@ -1,0 +1,102 @@
+<div class="card flex flex-col gap-4">
+    <h3 class="font-semibold text-xl m-0">
+      <strong>{{ isUpdateMode ? 'Update Transaction' : 'Create New Transaction' }}</strong>
+    </h3>
+    <form [formGroup]="transactionForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+      <hr />
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="walletId">Wallet <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="wallets"
+            formControlName="walletId"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Wallet"
+            class="w-full">
+          </p-select>
+          <p-message *ngIf="transactionForm.get('walletId')?.invalid && submitted" severity="error" text="Wallet is required."></p-message>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="userId">User <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="users"
+            formControlName="userId"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select User"
+            class="w-full">
+          </p-select>
+          <p-message *ngIf="transactionForm.get('userId')?.invalid && submitted" severity="error" text="User is required."></p-message>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="amount">Amount <span class="asterisk-imp">*</span></label>
+          <p-inputNumber id="amount" formControlName="amount" [min]="0"></p-inputNumber>
+          <p-message *ngIf="transactionForm.get('amount')?.invalid && submitted" severity="error" text="Amount is required and must be non-negative."></p-message>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="type">Type <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="transactionTypes"
+            formControlName="type"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Type"
+            class="w-full">
+          </p-select>
+          <p-message *ngIf="transactionForm.get('type')?.invalid && submitted" severity="error" text="Type is required."></p-message>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="status">Status <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="paymentStatuses"
+            formControlName="status"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Status"
+            class="w-full">
+          </p-select>
+          <p-message *ngIf="transactionForm.get('status')?.invalid && submitted" severity="error" text="Status is required."></p-message>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="description">Description</label>
+          <textarea pInputTextarea id="description" formControlName="description"></textarea>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="orderId">Order ID</label>
+          <p-select
+            [options]="orders"
+            formControlName="orderId"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Order"
+            class="w-full ">
+          </p-select>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="depositRequestId">Deposit Request ID</label>
+          <p-select
+            [options]="depositRequests"
+            formControlName="depositRequestId"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Deposit Request"
+            class="w-full">
+          </p-select>
+        </div>
+      </div>
+      <div class="flex flex-col grow basis-0 gap-2">
+        <label for="referenceId">Reference ID</label>
+        <input pInputText id="referenceId" formControlName="referenceId" />
+      </div>
+      <div class="flex justify-end">
+        <button pButton type="submit" [label]="isUpdateMode ? 'Update Transaction' : 'Create Transaction'" [disabled]="loading"></button>
+      </div>
+    </form>
+  </div>

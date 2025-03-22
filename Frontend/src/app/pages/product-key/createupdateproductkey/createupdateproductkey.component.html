@@ -1,0 +1,40 @@
+<div class="card flex flex-col gap-4">
+    <h3 class="font-semibold text-xl m-0">
+      <strong>{{ isUpdateMode ? 'Update Product Key' : 'Create New Product Key' }}</strong>
+    </h3>
+    <form [formGroup]="productKeyForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+      <hr />
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="key">Product Key <span class="asterisk-imp">*</span></label>
+          <input pInputText id="key" type="text" formControlName="key" />
+          <p-message *ngIf="keyControl?.invalid && submitted" severity="error" text="Product key is required."></p-message>
+        </div>
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="productId">Product <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="products"
+            formControlName="productId"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Product"
+            class="w-full">
+          </p-select>
+          <p-message *ngIf="productIdControl?.invalid && submitted" severity="error" text="Product is required."></p-message>
+        </div>
+      </div>
+      <div class="flex flex-col grow basis-0 gap-2">
+        <label for="isSold">Is Sold</label>
+        <p-checkbox formControlName="isSold" binary="true" />
+      </div>
+      <div class=" flex flex-col grow basis-0 gap-2">
+        <button
+          pButton
+          type="submit"
+          [icon]="isUpdateMode ? 'fas fa-save' : 'fas fa-plus'"
+          [label]="isUpdateMode ? 'Update Product Key' : 'Create Product Key'"
+          [disabled]="loading">
+        </button>
+      </div>
+    </form>
+  </div>

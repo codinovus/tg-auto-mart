@@ -1,0 +1,46 @@
+<div class="card flex flex-col gap-4">
+    <h3 class="font-semibold text-xl m-0">
+      <strong>{{ isUpdateMode ? 'Update Wallet' : 'Create New Wallet' }}</strong>
+    </h3>
+    <form [formGroup]="walletForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+      <hr />
+      <div class="flex flex-wrap gap-6">
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="userId">User <span class="asterisk-imp">*</span></label>
+          <p-select
+            [options]="users"
+            formControlName="userId"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select User"
+            class="w-full"
+            [disabled]="isUpdateMode">
+          </p-select>
+          <p-message *ngIf="formControls['userId'].invalid && submitted" severity="error" text="User is required."></p-message>
+        </div>
+
+        <div class="flex flex-col grow basis-0 gap-2">
+          <label for="balance">Balance <span class="asterisk-imp">*</span></label>
+          <p-inputNumber
+            formControlName="balance"
+            mode="currency"
+            currency="USD"
+            [min]="0"
+            [disabled]="isUpdateMode"
+            class="w-full">
+          </p-inputNumber>
+          <p-message *ngIf="formControls['balance'].invalid && submitted" severity="error" text="Balance must be at least $0."></p-message>
+        </div>
+      </div>
+
+      <div class="flex flex-col grow basis-0 gap-2">
+        <button
+          pButton
+          type="submit"
+          [icon]="isUpdateMode ? 'fas fa-save' : 'fas fa-plus'"
+          [label]="isUpdateMode ? 'Update Wallet' : 'Create Wallet'"
+          [disabled]="loading">
+        </button>
+      </div>
+    </form>
+  </div>

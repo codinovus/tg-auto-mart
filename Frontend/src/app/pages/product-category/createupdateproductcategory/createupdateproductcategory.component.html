@@ -1,0 +1,23 @@
+<div class="card flex flex-col gap-4">
+    <h3 class="font-semibold text-xl m-0">
+      <strong>{{ isUpdateMode ? 'Update Product Category' : 'Create New Product Category' }}</strong>
+    </h3>
+    <form [formGroup]="productCategoryForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+      <hr />
+      <div class="flex flex-col gap-2">
+        <label for="name">Category Name <span class="asterisk-imp">*</span></label>
+        <input pInputText id="name" type="text" formControlName="name" placeholder="Enter category name" />
+        <p-message *ngIf="nameControl?.invalid && submitted" severity="error" text="Category name is required."></p-message>
+      </div>
+
+      <div class="flex justify-content-end">
+        <button
+          pButton
+          type="submit"
+          [icon]="isUpdateMode ? 'fas fa-save' : 'fas fa-plus'"
+          [label]="isUpdateMode ? 'Update Category' : 'Create Category'"
+          [disabled]="loading">
+        </button>
+      </div>
+    </form>
+  </div>

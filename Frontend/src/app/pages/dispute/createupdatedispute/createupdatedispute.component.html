@@ -1,0 +1,46 @@
+<div class="card flex flex-col gap-4">
+    <h3 class="font-semibold text-xl m-0">
+        <strong>{{ isUpdateMode ? 'Update Dispute' : 'Create New Dispute' }}</strong>
+    </h3>
+    <form [formGroup]="disputeForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+        <hr />
+        <div class="flex flex-wrap gap-6">
+            <div class="flex flex-col grow basis-0 gap-2">
+                <label for="userId">User <span class="asterisk-imp">*</span></label>
+                <p-select [options]="users" formControlName="userId" optionLabel="label" optionValue="value" placeholder="Select User" class="w-full" [disabled]="isUpdateMode"> </p-select>
+                <p-message *ngIf="userIdControl?.invalid && submitted" severity="error" text="User is required."></p-message>
+            </div>
+
+            <div class="flex flex-col grow basis-0 gap-2">
+                <label for="orderId">Order <span class="asterisk-imp">*</span></label>
+                <p-select [options]="orders" formControlName="orderId" optionLabel="label" optionValue="value" placeholder="Select Order" class="w-full" [disabled]="isUpdateMode"> </p-select>
+                <p-message *ngIf="orderIdControl?.invalid && submitted" severity="error" text="Order is required."></p-message>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap gap-6">
+            <div class="flex flex-col grow basis-0 gap-2">
+                <label for="reason">Reason for Dispute <span class="asterisk-imp">*</span></label>
+                <textarea pTextarea formControlName="reason" rows="4" cols="30" placeholder="Describe the reason for this dispute" [disabled]="isUpdateMode" class="w-full"></textarea>
+                <p-message *ngIf="reasonControl?.invalid && submitted" severity="error" text="Reason is required and must be at least 10 characters."></p-message>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap gap-6" *ngIf="isUpdateMode">
+            <div class="flex flex-col grow basis-0 gap-2">
+                <label for="status">Status <span class="asterisk-imp">*</span></label>
+                <p-select [options]="statuses" formControlName="status" optionLabel="label" optionValue="value" placeholder="Select Status" class="w-full"> </p-select>
+                <p-message *ngIf="statusControl?.invalid && submitted" severity="error" text="Status is required."></p-message>
+            </div>
+
+            <div class="flex flex-col grow basis-0 gap-2">
+                <label for="resolution">Resolution</label>
+                <textarea formControlName="resolution" rows="5" cols="30" pTextarea placeholder="Provide details about the resolution" class="w-full"></textarea>
+            </div>
+        </div>
+
+        <div class="flex flex-col grow basis-0 gap-2 mt-4">
+            <button pButton type="submit" [icon]="isUpdateMode ? 'fas fa-save' : 'fas fa-plus'" [label]="isUpdateMode ? 'Update Dispute' : 'Submit Dispute'" [disabled]="loading"></button>
+        </div>
+    </form>
+</div>
