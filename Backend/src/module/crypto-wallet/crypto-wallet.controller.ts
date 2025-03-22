@@ -1,11 +1,13 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  ParseIntPipe,
   Post,
   Put,
   Query,
@@ -36,8 +38,8 @@ export class CryptoWalletController {
 
   @Get()
   async getAllWallets(
-    @Query('page') page = 1,
-    @Query('limit') limit = 10,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
   ): Promise<GetAllCryptoWalletsResponseDto> {
     return this.cryptoWalletService.getAllCryptoWallets(page, limit);
   }
