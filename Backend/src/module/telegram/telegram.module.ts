@@ -9,6 +9,7 @@ import { ReferralService } from '../referral/referral.service';
 import { CryptoWalletService } from '../crypto-wallet/crypto-wallet.service';
 import { WalletService } from '../wallet/wallet.service';
 import { OrderService } from '../order/order.service';
+import { ProductKeyService } from '../product-key/product-key.service';
 
 @Module({
   imports: [ConfigModule, PrismaModule],
@@ -20,7 +21,8 @@ import { OrderService } from '../order/order.service';
     ProductCategoryService,
     ProductService,
     ReferralService,
-    OrderService
+    OrderService,
+    ProductKeyService
   ],
 })
 export class TelegramModule {}

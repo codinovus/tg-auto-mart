@@ -6,5 +6,6 @@ import { PrismaService } from 'src/shared/prisma/prisma.service';
 @Module({
   controllers: [ProductKeyController],
   providers: [ProductKeyService, PrismaService],
+  exports: [ProductKeyService], // Export the service
 })
 export class ProductKeyModule {}

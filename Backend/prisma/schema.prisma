@@ -231,6 +231,8 @@ model ProductKey {
   isSold    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  order     Order?   @relation // Remove fields and references here
+  orderId   String?  @unique   // Ensure this field is unique for one-to-one
 
   @@index([productId])
   @@index([isSold])
@@ -250,6 +252,8 @@ model Order {
   promoCode     PromoCode?  @relation("OrderPromoCode", fields: [promoCodeId], references: [id])
   promoCodeId   String?
   disputes      Dispute[]
+  productKey    ProductKey? @relation(fields: [productKeyId], references: [id])
+  productKeyId  String?     @unique
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -258,7 +262,7 @@ model Order {
   @@index([status])
   @@index([promoCodeId])
   @@index([createdAt])
-  Transaction Transaction[]
+  Transaction   Transaction[]
 }
 
 model Payment {

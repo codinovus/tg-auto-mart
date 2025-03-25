@@ -22,6 +22,8 @@ export class OrderResponseDto {
   transactions?: TransactionResponseDto[];
   createdAt: Date;
   updatedAt: Date;
+  productKey?: string | null;
+  message?: string | null;
 }
 
 export class GetAllOrdersResponseDto {

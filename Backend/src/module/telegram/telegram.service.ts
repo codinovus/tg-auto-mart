@@ -155,10 +155,14 @@ export class TelegramService implements OnModuleInit {
         product.name,
       );
 
-      this.sendMessage(
-        chatId,
-        `✅ Purchase successful! You bought ${product.name} for $${order.total.toFixed(2)}.`,
-      );
+      let message = `✅ Purchase successful! You bought ${product.name} for $${order.total.toFixed(2)}.`;
+      if (order.productKey) {
+        message += `\n🔑 Your product key: ${order.productKey}`;
+      } else {
+        message += `\n📦 Your product will be delivered shortly.`;
+      }
+
+      this.sendMessage(chatId, message);
     } catch (error) {
       console.error('Error handling purchase:', error);
       this.sendMessage(
@@ -372,7 +376,11 @@ export class TelegramService implements OnModuleInit {
     const limit = 10; // Set a limit for the number of orders to fetch
 
     try {
-      const ordersResponse = await this.orderservice.getOrdersByTelegramId(telegramId, page, limit);
+      const ordersResponse = await this.orderservice.getOrdersByTelegramId(
+        telegramId,
+        page,
+        limit,
+      );
       const orders = ordersResponse.data;
 
       if (orders.length === 0) {
@@ -380,15 +388,22 @@ export class TelegramService implements OnModuleInit {
         return;
       }
 
-      const orderMessages = orders.map(order => {
-        const deliveryType = order.product.autoDeliver ? 'Automatic Delivery' : 'Manual Delivery';
-        return `🆔 Order ID: ${order.id}\n📦 Product: ${order.product.name}\n💲 Total: $${order.total.toFixed(2)}\n📅 Date: ${new Date(order.createdAt).toLocaleDateString()}`;
-      }).join('\n\n');
+      const orderMessages = orders
+        .map((order) => {
+          const deliveryType = order.product.autoDeliver
+            ? 'Automatic Delivery'
+            : 'Manual Delivery';
+          return `🆔 Order ID: ${order.id}\n📦 Product: ${order.product.name}\n💲 Total: $${order.total.toFixed(2)}\n📅 Date: ${new Date(order.createdAt).toLocaleDateString()}`;
+        })
+        .join('\n\n');
 
       this.bot.sendMessage(chatId, `📜 Your Orders:\n\n${orderMessages}`);
     } catch (error) {
       console.error('Error fetching orders:', error);
-      this.bot.sendMessage(chatId, '❌ An error occurred while fetching your orders. Please try again later.');
+      this.bot.sendMessage(
+        chatId,
+        '❌ An error occurred while fetching your orders. Please try again later.',
+      );
     }
   }
 
@@ -472,7 +487,6 @@ export class TelegramService implements OnModuleInit {
         await this.sendProductCategories(chatId, page);
         return;
       }
-  
 
       if (data.startsWith('product_page_')) {
         const [_, categoryId, direction] = data.split('_');
@@ -631,11 +645,12 @@ export class TelegramService implements OnModuleInit {
 
   private async sendProductCategories(chatId: number, page: number) {
     try {
-      const response = await this.productCategoryService.getAllProductCategories(page, 5);
+      const response =
+        await this.productCategoryService.getAllProductCategories(page, 5);
       if (!response.data.length) {
         return this.bot.sendMessage(chatId, '❌ No categories available.');
       }
-  
+
       const buttons = response.data.map((category) => {
         return [
           {
@@ -644,7 +659,7 @@ export class TelegramService implements OnModuleInit {
           },
         ];
       });
-  
+
       if (page > 1 || page < response.pagination.totalPages) {
         buttons.push([
           ...(page > 1
@@ -668,7 +683,6 @@ export class TelegramService implements OnModuleInit {
       setTimeout(async () => {
         await this.bot.deleteMessage(chatId, categoryMessage.message_id);
       }, 5000);
-  
     } catch (error) {
       console.error('Error fetching categories:', error);
       this.bot.sendMessage(chatId, '❌ Error fetching categories.');
@@ -986,3 +1000,4 @@ export class TelegramService implements OnModuleInit {
     }
   }
 }
+

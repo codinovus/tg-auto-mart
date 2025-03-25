@@ -7,10 +7,12 @@ import {
   OrderResponseDto,
   UpdateOrderDto,
 } from './model/order.dto';
+import { ProductKeyService } from '../product-key/product-key.service';
+import { ProductKeyResponseDto } from '../product-key/model/product-key.dto';
 
 @Injectable()
 export class OrderService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private ProductkeyService : ProductKeyService) {}
 
   // Helper Methods
   private validatePagination(page: number, limit: number): void {
@@ -63,25 +65,24 @@ export class OrderService {
   // Create Methods
   async createOrder(createOrderDto: CreateOrderDto): Promise<OrderResponseDto> {
     const { userId, productId, quantity = 1, promoCodeId } = createOrderDto;
-    
+  
     await this.validateProductExists(productId);
     await this.validateUserExists(userId);
-    
+  
     if (promoCodeId) {
       const promoCode = await this.prisma.promoCode.findUnique({
         where: { id: promoCodeId },
       });
-      
+  
       if (!promoCode) {
         throw new NotFoundException(`PromoCode with ID ${promoCodeId} not found`);
       }
     }
-    
+  
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
     });
   
-    // Add null check
     if (!product) {
       throw new NotFoundException(`Product with ID ${productId} not found`);
     }
@@ -100,25 +101,57 @@ export class OrderService {
     }
   
     try {
-      const order = await this.prisma.order.create({
-        data: {
-          userId,
-          productId,
-          quantity,
-          promoCodeId,
-          total,
-          discountAmount: discountAmount > 0 ? discountAmount : 0,
-        },
-        include: {
-          product: true,
-          payment: true,
-          promoCode: true,
-          disputes: true,
-          Transaction: true,
-        },
-      });
+      return await this.prisma.$transaction(async (prisma) => {
+        const order = await prisma.order.create({
+          data: {
+            userId,
+            productId,
+            quantity,
+            promoCodeId,
+            total,
+            discountAmount: discountAmount > 0 ? discountAmount : 0,
+          },
+          include: {
+            product: true,
+            payment: true,
+            promoCode: true,
+            disputes: true,
+            Transaction: true,
+          },
+        });
   
-      return this.mapToOrderResponseDto(order);
+        let productKey: ProductKeyResponseDto | null = null;
+        if (product.autoDeliver) {
+          productKey = await this.ProductkeyService.getAvailableProductKeyByProductId(productId);
+  
+          if (productKey) {
+            // Update the product key to mark it as sold and link it to the order
+            await prisma.productKey.update({
+              where: { id: productKey.id },
+              data: {
+                isSold: true,
+                orderId: order.id,
+              },
+            });
+          }
+        }
+  
+        // Decrease the product stock by the quantity ordered
+        await prisma.product.update({
+          where: { id: productId },
+          data: {
+            stock: {
+              decrement: quantity,
+            },
+          },
+        });
+  
+        return {
+          ...this.mapToOrderResponseDto(order),
+          productKey: productKey ? productKey.key : null,
+          message: productKey ? null : 'Your order will be fulfilled shortly.',
+        };
+      });
     } catch (error) {
       throw new BadRequestException('Error creating order: ' + error.message);
     }

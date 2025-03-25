@@ -151,4 +151,20 @@ export class ProductKeyService {
       message: `Product key with ID ${productKeyId} deleted successfully`,
     };
   }
+
+  async getAvailableProductKeyByProductId(productId: string): Promise<ProductKeyResponseDto | null> {
+    if (!productId) {
+      throw new BadRequestException('Product ID is required');
+    }
+  
+    const productKey = await this.prisma.productKey.findFirst({
+      where: {
+        productId: productId,
+        isSold: false,
+      },
+    });
+  
+    return productKey ? this.mapToProductKeyResponseDto(productKey) : null;
+  }
+  
 }
