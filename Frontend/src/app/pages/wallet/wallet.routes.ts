@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { CreateupdatewalletComponent } from './createupdatewallet/createupdatewallet.component';
+import { ListWalletComponent } from './listwallet/listwallet.component';
 
 export const walletRoutes: Routes = [
   {
@@ -9,5 +10,9 @@ export const walletRoutes: Routes = [
   {
     path: 'edit/:id',
     component: CreateupdatewalletComponent,
+  },
+  {
+    path: '',
+    component: ListWalletComponent,
   },
 ];

@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { CreateupdatedisputeComponent } from './createupdatedispute/createupdatedispute.component';
+import { ListDisputeComponent } from './listdispute/listdispute.component';
 
 export const disputeRoutes: Routes = [
   {
@@ -9,5 +10,9 @@ export const disputeRoutes: Routes = [
   {
     path: 'edit/:id',
     component: CreateupdatedisputeComponent,
+  },
+  {
+    path: '',
+    component: ListDisputeComponent,
   },
 ];

@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { CreateupdatecryptowalletComponent } from './createupdatecryptowallet/createupdatecryptowallet.component';
-import { ListcryptowalletComponent } from './listcryptowallet/listcryptowallet.component';
+import { ListCryptowalletComponent } from './listcryptowallet/listcryptowallet.component';
+
 
 export const cryptowalletRoutes: Routes = [
   {
@@ -12,7 +13,7 @@ export const cryptowalletRoutes: Routes = [
     component: CreateupdatecryptowalletComponent,
   },
   {
-    path: 'list',
-    component: ListcryptowalletComponent,
+    path: '',
+    component: ListCryptowalletComponent,
   },
 ];

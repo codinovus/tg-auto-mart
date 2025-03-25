@@ -8,7 +8,7 @@ export class DepositRequestResponseDto {
   user: UserResponseDto;
   userId: string;
   amount: number;
-  paymentLink: string;
+  paymentLink?: string;
   status: PaymentStatus;
   transactions?: TransactionResponseDto[];
   createdAt: Date;
@@ -57,7 +57,7 @@ export class GetDepositRequestByIdResponseDto {
 export class CreateDepositRequestDto {
   userId: string;
   amount: number;
-  paymentLink: string;
+  paymentLink?: string;
   status?: PaymentStatus;
 }
 

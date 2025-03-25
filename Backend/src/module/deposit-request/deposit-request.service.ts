@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/shared/prisma/prisma.service';
 import {
@@ -12,10 +11,13 @@ import {
   UpdateDepositRequestDto,
 } from './model/deposit-request.dto';
 import { PaymentStatus } from '@prisma/client';
+import { PaymentGatewayService } from '../payment-gateway/payment-gateway.service';
 
 @Injectable()
 export class DepositRequestService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService,
+    private paymentGatewayService : PaymentGatewayService
+  ) {}
 
   // Helper Methods
   private validatePagination(page: number, limit: number): void {
@@ -56,38 +58,47 @@ export class DepositRequestService {
   async createDepositRequest(
     createDto: CreateDepositRequestDto,
   ): Promise<DepositRequestResponseDto> {
-    const { userId, amount, paymentLink } = createDto;
-
-    if (!userId || !amount || !paymentLink) {
-      throw new BadRequestException(
-        'userId, amount, and paymentLink are required',
-      );
+    const { userId, amount } = createDto;
+  
+    if (!userId || !amount) {
+      throw new BadRequestException('userId and amount are required');
     }
-
-    const existingRequest = await this.prisma.depositRequest.findFirst({
-      where: { paymentLink },
-    });
-
-    if (existingRequest) {
-      throw new ConflictException(
-        'A deposit request with this payment link already exists',
-      );
-    }
-
+  
+    // Create the DepositRequest entry
     const depositRequest = await this.prisma.depositRequest.create({
       data: {
         userId,
         amount,
-        paymentLink,
-        status: createDto.status || PaymentStatus.PENDING,
+        status: PaymentStatus.PENDING,
       },
+    });
+  
+    // Generate the payment link using NowPayments.io
+    const paymentLink = await this.paymentGatewayService.createInvoice(
+      amount, // priceAmount
+      'usd', // priceCurrency
+      depositRequest.id, // orderId
+      `Deposit request for user ${userId}`, // orderDescription
+      'https://your-backend-url.com/nowpayments-webhook', // ipnCallbackUrl
+      'https://your-frontend-url.com/success', // successUrl
+      'https://your-frontend-url.com/cancel', // cancelUrl,
+    );
+  
+    // Update the DepositRequest with the payment link
+    const updatedDepositRequest = await this.prisma.depositRequest.update({
+      where: { id: depositRequest.id },
+      data: { paymentLink: paymentLink.invoice_url },
       include: {
         user: true,
         Transaction: true,
       },
     });
-
-    return this.mapDepositRequestToResponse(depositRequest);
+  
+    // Return the response with the payment link
+    return {
+      ...this.mapDepositRequestToResponse(updatedDepositRequest),
+      paymentLink: paymentLink.invoice_url, // Include the payment link in the response
+    };
   }
 
   // Get Methods

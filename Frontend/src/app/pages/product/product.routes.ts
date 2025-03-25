@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { CreateupdateproductComponent } from './createupdateproduct/createupdateproduct.component';
+import { ListProductComponent } from './listproduct/listproduct.component';
 
 export const productRoutes: Routes = [
   {
@@ -10,4 +11,8 @@ export const productRoutes: Routes = [
     path: 'edit/:id',
     component: CreateupdateproductComponent,
   },
+  {
+    path: '',
+    component: ListProductComponent
+  }
 ];

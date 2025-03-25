@@ -1,7 +1,7 @@
-<div class="card flex flex-col gap-4">
-    <h3 class="font-semibold text-xl m-0">
-        <strong>{{ isUpdateMode ? 'Update User' : 'Create New User' }}</strong>
-    </h3>
+<div class="card flex flex-col">
+    <h5>
+        <strong class="page-title">{{ isUpdateMode ? 'Update User' : 'Create New User' }}</strong>
+    </h5>
     <form [formGroup]="userForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
         <hr />
         <div class="flex flex-wrap gap-6">

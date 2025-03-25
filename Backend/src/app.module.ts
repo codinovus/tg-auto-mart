@@ -19,6 +19,7 @@ import { PaymentModule } from './module/payment/payment.module';
 import { PromoCodeModule } from './module/promo-code/promo-code.module';
 import { TransactionModule } from './module/transaction/transaction.module';
 import { AuthModule } from './shared/auth/auth.module';
+import { PaymentGatewayModule } from './module/payment-gateway/payment-gateway.module';
 
 @Module({
   imports: [
@@ -42,7 +43,8 @@ import { AuthModule } from './shared/auth/auth.module';
     TransactionModule,
     WalletModule,
     AuthModule,
-    ConfigModule
+    ConfigModule,
+    PaymentGatewayModule
   ],
   controllers: [AppController],
   providers: [AppService],

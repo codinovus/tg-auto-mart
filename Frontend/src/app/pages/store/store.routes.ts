@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { CreateupdatestoreComponent } from './createupdatestore/createupdatestore.component';
+import { ListStoreComponent } from './liststore/liststore.component';
 
 
 export const storeRoutes: Routes = [
@@ -10,5 +11,9 @@ export const storeRoutes: Routes = [
   {
     path: 'edit/:id',
     component: CreateupdatestoreComponent,
+  },
+  {
+    path: '',
+    component: ListStoreComponent,
   },
 ];

@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { CreateupdatereferralComponent } from './createupdatereferral/createupdatereferral.component';
+import { ListReferralComponent } from './listreferral/listreferral.component';
 
 
 export const referralRoutes: Routes = [
@@ -10,5 +11,9 @@ export const referralRoutes: Routes = [
   {
     path: 'edit/:id',
     component: CreateupdatereferralComponent,
+  },
+  {
+    path: '',
+    component: ListReferralComponent,
   },
 ];

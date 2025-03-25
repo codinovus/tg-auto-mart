@@ -54,6 +54,7 @@ export class CreatupdateuserComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.initRoles();
+    this.initForm();
     this.handleRouteParams();
   }
 
