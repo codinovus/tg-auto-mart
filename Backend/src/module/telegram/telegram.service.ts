@@ -791,25 +791,25 @@ export class TelegramService implements OnModuleInit {
         page,
         5,
       );
-  
+
       if (!response.data.length) {
         return this.bot.sendMessage(chatId, '❌ No products in this category.');
       }
-  
+
       const buttons = response.data.map((product) => [
         {
           text: product.name,
           callback_data: `product_${product.id}`,
         },
       ]);
-  
+
       buttons.push([
         {
           text: '🔙 Back to Categories',
           callback_data: 'back_to_categories',
         },
       ]);
-  
+
       if (page > 1 || page < response.pagination.totalPages) {
         buttons.push([
           ...(page > 1
@@ -830,18 +830,11 @@ export class TelegramService implements OnModuleInit {
             : []),
         ]);
       }
-  
-      if (this.currentPage.has(chatId)) {
-        const previousMessageId = this.currentPage.get(chatId);
-        await this.bot.deleteMessage(chatId, previousMessageId);
-      }
-  
-      const previousMessage = await this.bot.sendMessage(chatId, `🛒 *Products - Page ${page}*`, {
+
+      await this.bot.sendMessage(chatId, `🛒 *Products - Page ${page}*`, {
         parse_mode: 'Markdown',
         reply_markup: { inline_keyboard: buttons },
       });
-  
-      this.currentPage.set(chatId, previousMessage.message_id);
     } catch (error) {
       this.bot.sendMessage(chatId, '❌ Error fetching products.');
     }
