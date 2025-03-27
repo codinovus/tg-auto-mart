@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
 /* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
 /* eslint-disable @typescript-eslint/require-await */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
@@ -15,6 +16,8 @@ import { CryptoWalletService } from '../crypto-wallet/crypto-wallet.service';
 import { CryptoType } from '@prisma/client';
 import { WalletService } from '../wallet/wallet.service';
 import { OrderService } from '../order/order.service';
+import { CreateDepositRequestDto } from '../deposit-request/model/deposit-request.dto';
+import { DepositRequestService } from '../deposit-request/deposit-request.service';
 
 @Injectable()
 export class TelegramService implements OnModuleInit {
@@ -36,6 +39,7 @@ export class TelegramService implements OnModuleInit {
     private productService: ProductService,
     private walletservice: WalletService,
     private orderservice: OrderService,
+    private depositservice : DepositRequestService,
     private readonly cryptowalletService: CryptoWalletService,
   ) {
     this.bot = new TelegramBot(this.configService.get('TELEGRAM_BOT_TOKEN'), {
@@ -115,7 +119,7 @@ export class TelegramService implements OnModuleInit {
           '❌ User not found. Please start again with /start',
         );
       }
-
+  
       const product = await this.getProductById(productId.toString());
       if (!product) {
         return this.sendMessage(
@@ -129,7 +133,7 @@ export class TelegramService implements OnModuleInit {
           '❌ Sorry, this product is out of stock.',
         );
       }
-
+  
       const userWallet = await this.getUserWallet(telegramId.toString());
       if (userWallet.balance < product.price) {
         return this.handleInsufficientBalance(
@@ -139,7 +143,7 @@ export class TelegramService implements OnModuleInit {
           userWallet.balance,
         );
       }
-
+  
       const order = await this.createOrder(String(user.id), productId);
       await this.updateWalletBalance(
         String(user.id),
@@ -154,14 +158,20 @@ export class TelegramService implements OnModuleInit {
         order.total,
         product.name,
       );
-
+  
       let message = `✅ Purchase successful! You bought ${product.name} for $${order.total.toFixed(2)}.`;
       if (order.productKey) {
         message += `\n🔑 Your product key: ${order.productKey}`;
       } else {
         message += `\n📦 Your product will be delivered shortly.`;
       }
-
+  
+      // Delete the previous message showing product details or list if necessary
+      if (this.currentPage.has(chatId)) {
+        const previousMessageId = this.currentPage.get(chatId);
+        await this.bot.deleteMessage(chatId, previousMessageId);
+      }
+  
       this.sendMessage(chatId, message);
     } catch (error) {
       console.error('Error handling purchase:', error);
@@ -324,7 +334,7 @@ export class TelegramService implements OnModuleInit {
         await this.referralService.createReferral({
           referredById: String(referrer.id),
           referredUserId: userId,
-          rewardAmount: 10,
+          rewardAmount: 0,
         });
         this.bot.sendMessage(
           chatId,
@@ -509,23 +519,91 @@ export class TelegramService implements OnModuleInit {
     }
   }
 
-  private handleAddBalance(chatId: number): void {
-    this.bot.sendMessage(chatId, 'Please enter the amount you want to add:');
+  private async handleAddBalance(chatId: number): Promise<void> {
+    const initialMessage = await this.bot.sendMessage(chatId, 'Please enter the amount you want to add:');
+  
+    const messageListener = this.bot.on('message', async (msg) => {
+      const amount = parseFloat(msg.text.trim());
+      console.log(`User  entered amount: ${amount}`);
+  
+      await this.bot.deleteMessage(chatId, initialMessage.message_id);
+  
+      if (isNaN(amount) || amount <= 0 || amount > 1000) {
+        this.bot.sendMessage(chatId, '❌ Please enter a valid amount (greater than 0 and less than or equal to $1000).');
+        return;
+      }
+  
+      try {
+        const telegramId = msg.from.id.toString();
+        const user = await this.userService.getUserByTelegramId(telegramId);
+        const createDto: CreateDepositRequestDto = {
+          userId: user.id.toString(),
+          amount: amount,
+        };
+  
+        console.log(`Creating deposit request with DTO: ${JSON.stringify(createDto)}`);
+        const response = await this.depositservice.createDepositRequest(createDto);
+  
+        if (response.paymentLink) {
+          const paymentLink = response.paymentLink;
+          this.bot.sendMessage(chatId, `Processing your request to add $${amount}...`);
+          this.bot.sendMessage(
+            chatId,
+            `✅ Click the link below to proceed with the payment of $${amount}:\n${paymentLink}`,
+            {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: '💳 Proceed to Payment',
+                      url: paymentLink,
+                    },
+                  ],
+                  // [
+                  //   {
+                  //     text: '✅ Mark as Done',
+                  //     callback_data: `mark_done_${telegramId}`,
+                  //   },
+                  // ],
+                ],
+              },
+            },
+          );
+        } else {
+          this.bot.sendMessage(chatId, '❌ Something went wrong. Please try again later.');
+        }
+      } catch (error) {
+        console.error('Error processing add balance request:', error);
+        this.bot.sendMessage(chatId, '❌ An error occurred while processing your request. Please try again later.');
+      } finally {
+        this.bot.off('message', messageListener); // Remove the listener after processing
+      }
+    });
+  }
+  
+  private async handleMarkAsDone(callbackQuery: TelegramBot.CallbackQuery): Promise<void> {
+    const chatId = callbackQuery.message.chat.id;
+    const telegramId = callbackQuery.from.id.toString();
+  
+    // Optionally, you can perform any additional logic here, such as updating the user's status or logging the action.
+  
+    this.bot.sendMessage(chatId, '✅ Your payment will be processed shortly.');
+    this.bot.answerCallbackQuery(callbackQuery.id);
   }
 
-  private async handleProductDetails(query: any): Promise<void> {
+  private async handleProductDetails(query: TelegramBot.CallbackQuery): Promise<void> {
     const chatId = query.message.chat.id;
     const productId = query.data.split('_')[1];
-
+  
     const product = await this.productService.getProductById(productId);
     if (!product) {
       this.bot.answerCallbackQuery(query.id, { text: 'Product not found' });
       return;
     }
-
+  
     const categoryId = product.categoryId;
     const page = this.currentPage.get(chatId) || 1;
-
+  
     const message = `
       📦 *Product Name:* 
       ${product.name}
@@ -536,7 +614,7 @@ export class TelegramService implements OnModuleInit {
   
       📦 *Quantity in Stock:* ${product.stock}
     `;
-
+  
     const keyboard = {
       inline_keyboard: [
         [{ text: '🛒 Buy Now', callback_data: `buy_${product.id}` }],
@@ -554,24 +632,37 @@ export class TelegramService implements OnModuleInit {
         ],
       ],
     };
-
+  
+    if (this.currentPage.has(chatId)) {
+      const previousMessageId = this.currentPage.get(chatId);
+      await this.bot.deleteMessage(chatId, previousMessageId);
+    }
+  
     await this.bot.sendMessage(chatId, message, {
       parse_mode: 'Markdown',
       reply_markup: keyboard,
     });
+  
+    this.currentPage.set(chatId, query.message.message_id);
     this.bot.answerCallbackQuery(query.id);
   }
 
-  private async handleBackToCategories(chatId: number): Promise<void> {
+  private async handleBackToCategories(query: TelegramBot.CallbackQuery): Promise<void> {
+    const chatId = query.message.chat.id;
+  
+    await this.bot.deleteMessage(chatId, query.message.message_id);
+    
     await this.sendProductCategories(chatId, 1);
-    this.bot.answerCallbackQuery(chatId);
+    this.bot.answerCallbackQuery(query.id);
   }
 
-  private async handleBackToProducts(query: any): Promise<void> {
+  private async handleBackToProducts(query: TelegramBot.CallbackQuery): Promise<void> {
     const parts = query.data.split('_');
     const categoryId = parts[3];
     const page = parseInt(parts[4], 10);
-
+  
+    await this.bot.deleteMessage(query.message.chat.id, query.message.message_id);
+    
     await this.sendProductsByCategory(query.message.chat.id, categoryId, page);
     this.bot.answerCallbackQuery(query.id);
   }
@@ -639,7 +730,7 @@ export class TelegramService implements OnModuleInit {
         { parse_mode: 'Markdown' },
       );
     } catch (error) {
-      this.bot.sendMessage(chatId, '❌ Error fetching referrals.');
+      this.bot.sendMessage(chatId, '❌ No referrals found.');
     }
   }
 
@@ -700,25 +791,25 @@ export class TelegramService implements OnModuleInit {
         page,
         5,
       );
-
+  
       if (!response.data.length) {
         return this.bot.sendMessage(chatId, '❌ No products in this category.');
       }
-
+  
       const buttons = response.data.map((product) => [
         {
           text: product.name,
           callback_data: `product_${product.id}`,
         },
       ]);
-
+  
       buttons.push([
         {
           text: '🔙 Back to Categories',
           callback_data: 'back_to_categories',
         },
       ]);
-
+  
       if (page > 1 || page < response.pagination.totalPages) {
         buttons.push([
           ...(page > 1
@@ -739,11 +830,18 @@ export class TelegramService implements OnModuleInit {
             : []),
         ]);
       }
-
-      await this.bot.sendMessage(chatId, `🛒 *Products - Page ${page}*`, {
+  
+      if (this.currentPage.has(chatId)) {
+        const previousMessageId = this.currentPage.get(chatId);
+        await this.bot.deleteMessage(chatId, previousMessageId);
+      }
+  
+      const previousMessage = await this.bot.sendMessage(chatId, `🛒 *Products - Page ${page}*`, {
         parse_mode: 'Markdown',
         reply_markup: { inline_keyboard: buttons },
       });
+  
+      this.currentPage.set(chatId, previousMessage.message_id);
     } catch (error) {
       this.bot.sendMessage(chatId, '❌ Error fetching products.');
     }
@@ -955,6 +1053,7 @@ export class TelegramService implements OnModuleInit {
   private async handleUserWallet(msg: TelegramBot.Message) {
     const chatId = msg.chat.id;
     const telegramId = msg.from.id.toString();
+    
     try {
       const wallet = await this.walletservice.getWalletByTelegramId(telegramId);
       const balance = wallet.balance.toFixed(2).replace('.', '\\.');
@@ -967,7 +1066,7 @@ export class TelegramService implements OnModuleInit {
         /([_*[\]()~`>#+\-=|{}.!\\])/g,
         '\\$1',
       );
-
+  
       const message = `
   💰 *Your Wallet*:
   
@@ -987,7 +1086,13 @@ export class TelegramService implements OnModuleInit {
           ],
         },
       };
-      this.bot.sendMessage(chatId, message, {
+  
+      if (this.currentPage.has(chatId)) {
+        const previousMessageId = this.currentPage.get(chatId);
+        await this.bot.deleteMessage(chatId, previousMessageId);
+      }
+  
+      await this.bot.sendMessage(chatId, message, {
         parse_mode: 'MarkdownV2',
         reply_markup: keyboard.reply_markup,
       });

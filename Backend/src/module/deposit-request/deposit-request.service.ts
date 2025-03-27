@@ -10,13 +10,12 @@ import {
   GetAllDepositRequestsResponseDto,
   UpdateDepositRequestDto,
 } from './model/deposit-request.dto';
-import { PaymentStatus } from '@prisma/client';
 import { PaymentGatewayService } from '../payment-gateway/payment-gateway.service';
 
 @Injectable()
 export class DepositRequestService {
   constructor(private prisma: PrismaService,
-    private paymentGatewayService : PaymentGatewayService
+    private paymentgatewayService : PaymentGatewayService
   ) {}
 
   // Helper Methods
@@ -54,7 +53,6 @@ export class DepositRequestService {
     };
   }
 
-  // Create Methods
   async createDepositRequest(
     createDto: CreateDepositRequestDto,
   ): Promise<DepositRequestResponseDto> {
@@ -64,42 +62,13 @@ export class DepositRequestService {
       throw new BadRequestException('userId and amount are required');
     }
   
-    // Create the DepositRequest entry
-    const depositRequest = await this.prisma.depositRequest.create({
-      data: {
-        userId,
-        amount,
-        status: PaymentStatus.PENDING,
-      },
-    });
+    // Call the addBalance method to handle the deposit request creation and payment link generation
+    const depositRequestResponse = await this.paymentgatewayService.addBalance(createDto);
   
-    // Generate the payment link using NowPayments.io
-    const paymentLink = await this.paymentGatewayService.createInvoice(
-      amount, // priceAmount
-      'usd', // priceCurrency
-      depositRequest.id, // orderId
-      `Deposit request for user ${userId}`, // orderDescription
-      'https://your-backend-url.com/nowpayments-webhook', // ipnCallbackUrl
-      'https://your-frontend-url.com/success', // successUrl
-      'https://your-frontend-url.com/cancel', // cancelUrl,
-    );
-  
-    // Update the DepositRequest with the payment link
-    const updatedDepositRequest = await this.prisma.depositRequest.update({
-      where: { id: depositRequest.id },
-      data: { paymentLink: paymentLink.invoice_url },
-      include: {
-        user: true,
-        Transaction: true,
-      },
-    });
-  
-    // Return the response with the payment link
-    return {
-      ...this.mapDepositRequestToResponse(updatedDepositRequest),
-      paymentLink: paymentLink.invoice_url, // Include the payment link in the response
-    };
+    // Return the response from addBalance, which includes all necessary properties
+    return depositRequestResponse;
   }
+
 
   // Get Methods
   async getAllDepositRequests(

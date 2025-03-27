@@ -4,8 +4,15 @@ meta {
   seq: 2
 }
 
-get {
-  url: http://localhost:3000
-  body: none
+post {
+  url: http://localhost:3000/deposit-requests
+  body: json
   auth: none
+}
+
+body:json {
+  {
+    "userId": "4fbc85d8-6b07-4a43-88c8-7376c959f857",
+    "amount": 100.00
+  }
 }

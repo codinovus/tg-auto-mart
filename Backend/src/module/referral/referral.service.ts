@@ -156,19 +156,13 @@ import {
     ): Promise<GetAllReferralsResponseDto> {
       const totalItems = await this.prisma.referral.count({
         where: {
-          OR: [
-            { referredBy: { telegramId } },
-            { referredUser: { telegramId } },
-          ],
+          referredBy: { telegramId },
         },
       });
   
       const referrals = await this.prisma.referral.findMany({
         where: {
-          OR: [
-            { referredBy: { telegramId } },
-            { referredUser: { telegramId } },
-          ],
+            referredBy: { telegramId },
         },
         skip: (page - 1) * limit,
         take: limit,
