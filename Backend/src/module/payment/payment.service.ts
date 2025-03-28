@@ -12,6 +12,7 @@ import {
   GetAllPaymentsResponseDto,
   GetPaymentByIdResponseDto,
 } from './model/payment.dto';
+import { PaymentStatus } from '@prisma/client';
 
 @Injectable()
 export class PaymentService {
@@ -79,15 +80,67 @@ export class PaymentService {
   }
 
   // Get Methods
-  async getAllPayments(page: number, limit: number): Promise<GetAllPaymentsResponseDto> {
+  async getAllPayments(
+    page: number, 
+    limit: number,
+    search?: string
+  ): Promise<GetAllPaymentsResponseDto> {
     this.validatePagination(page, limit);
-
-    const totalItems = await this.prisma.payment.count();
+  
+    let whereClause = {};
+  
+    if (search) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search);
+      const isStatus = Object.values(PaymentStatus).includes(search.toUpperCase() as PaymentStatus);
+      const isNumber = !isNaN(parseFloat(search));
+      
+      let isDate = false;
+      let dateStart: Date | null = null;
+      let dateEnd: Date | null = null;
+      
+      try {
+        const potentialDate = new Date(search);
+        if (!isNaN(potentialDate.getTime())) {
+          isDate = true;
+          dateStart = new Date(potentialDate);
+          dateStart.setHours(0, 0, 0, 0);
+          
+          dateEnd = new Date(potentialDate);
+          dateEnd.setHours(23, 59, 59, 999);
+        }
+      } catch (e) {
+        console.warn(e)
+      }
+  
+      whereClause = {
+        OR: [
+          ...(isUuid ? [{ id: search }] : []),
+          ...(isUuid ? [{ orderId: search }] : []),
+          ...(isNumber ? [{ amount: parseFloat(search) }] : []),
+          ...(isStatus ? [{ status: search.toUpperCase() as PaymentStatus }] : []),
+          ...(isDate && dateStart && dateEnd ? [{
+            updatedAt: {
+              gte: dateStart,
+              lte: dateEnd
+            }
+          }] : [])
+        ]
+      };
+    }
+  
+    const totalItems = await this.prisma.payment.count({
+      where: whereClause
+    });
+  
     const payments = await this.prisma.payment.findMany({
+      where: whereClause,
       skip: (page - 1) * limit,
       take: limit,
+      orderBy: {
+        updatedAt: 'desc',
+      },
     });
-
+  
     return new GetAllPaymentsResponseDto(
       true,
       'Payments fetched successfully',

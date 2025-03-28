@@ -9,6 +9,7 @@ import {
 } from './model/dispute.dto';
 import { OrderResponseDto } from 'src/module/order/model/order.dto';
 import { UserResponseDto } from 'src/module/user/model/user.model';
+import { SearchableField, SearchBuilder } from 'src/shared/base/search-builder.util';
 
 @Injectable()
 export class DisputeService {
@@ -70,21 +71,51 @@ export class DisputeService {
   }
 
   // Get Methods
-  async getAllDisputes(page: number, limit: number): Promise<GetAllDisputesResponseDto> {
+  async getAllDisputes(
+    page: number, 
+    limit: number, 
+    search?: string
+  ): Promise<GetAllDisputesResponseDto> {
     this.validatePagination(page, limit);
-
-    const totalItems = await this.prisma.dispute.count();
+  
+    const searchableFields: SearchableField[] = [
+      { name: 'id', type: 'string', exact: true },
+      { name: 'orderId', type: 'string', exact: true },
+      { name: 'status', type: 'enum', enumType: 'DisputeStatus' },
+      { 
+        name: 'user', 
+        nested: true, 
+        relationField: 'user', 
+        searchableFields: [
+          { name: 'username', type: 'string' },
+        ] 
+      },
+      { name: 'updatedAt', type: 'date' },
+    ];
+  
+    const whereClause = SearchBuilder.buildWhereClause(search, searchableFields);
+  
+    const totalItems = await this.prisma.dispute.count({
+      where: whereClause
+    });
+  
     const disputes = await this.prisma.dispute.findMany({
+      where: whereClause,
       skip: (page - 1) * limit,
       take: limit,
       include: {
         order: true,
         user: true,
       },
+      orderBy: {
+        updatedAt: 'desc',
+      },
     });
-
-    const disputeResponseDtos: DisputeResponseDto[] = disputes.map(dispute => this.mapToDisputeResponseDto(dispute));
-
+  
+    const disputeResponseDtos: DisputeResponseDto[] = disputes.map(
+      dispute => this.mapToDisputeResponseDto(dispute)
+    );
+  
     const totalPages = Math.ceil(totalItems / limit);
     return new GetAllDisputesResponseDto(
       true,

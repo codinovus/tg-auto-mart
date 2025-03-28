@@ -15,6 +15,7 @@ import {
 import { StoreService } from './store.service';
 import {
   CreateStoreDto,
+  GetAllStoresResponseDto,
   StoreResponseDto,
   UpdateStoreDto,
 } from './model/store.dto';
@@ -37,8 +38,9 @@ export class StoreController {
   async getAllStores(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
-  ) {
-    return this.storeService.getAllStores(page, limit);
+    @Query('search') search?: string,
+  ): Promise<GetAllStoresResponseDto> {
+    return this.storeService.getAllStores(page, limit, search);
   }
 
   @Get(':id')

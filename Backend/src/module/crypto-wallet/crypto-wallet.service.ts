@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   Injectable,
   ConflictException,
@@ -11,6 +12,8 @@ import {
   GetAllCryptoWalletsResponseDto,
   UpdateCryptoWalletDto,
 } from './model/crypto-wallet.dto';
+import { SearchableField, SearchBuilder } from 'src/shared/base/search-builder.util';
+import { PrismaSchemaUtil } from 'src/shared/prisma/prisma-schema.util';
 
 @Injectable()
 export class CryptoWalletService {
@@ -63,21 +66,51 @@ export class CryptoWalletService {
   async getAllCryptoWallets(
     page: number,
     limit: number,
+    search?: string,
   ): Promise<GetAllCryptoWalletsResponseDto> {
     this.validatePagination(page, limit);
-
-    const totalItems = await this.prisma.cryptoWallet.count();
-
+  
+    // Define searchable fields
+    const searchableFields: SearchableField[] = [
+      { name: 'address', type: 'string' },
+      { name: 'type', type: 'enum', enumType: 'CryptoType' },
+      {
+        name: 'user',
+        nested: true,
+        relationField: 'user',
+        searchableFields: [
+          { name: 'username', type: 'string' },
+        ],
+      },
+    ];
+  
+    // Build the where clause based on the search query
+    const whereClause = SearchBuilder.buildWhereClause(search, searchableFields);
+  
+    // Count total items matching the where clause
+    const totalItems = await this.prisma.cryptoWallet.count({
+      where: whereClause,
+    });
+  
+    // Fetch wallets with pagination and include user relation
     const wallets = await this.prisma.cryptoWallet.findMany({
+      where: whereClause,
       skip: (page - 1) * limit,
       take: limit,
+      include: {
+        user: true, // Include user to access username
+      },
     });
-
+  
+    // Map the wallets to response DTOs
     const walletResponseDtos: CryptoWalletResponseDto[] = wallets.map(
       (wallet) => this.mapToCryptoWalletResponse(wallet),
     );
-
+  
+    // Calculate total pages
     const totalPages = Math.ceil(totalItems / limit);
+  
+    // Return the response DTO
     return {
       success: true,
       message: 'Crypto wallets fetched successfully',

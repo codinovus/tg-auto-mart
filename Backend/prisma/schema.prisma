@@ -126,7 +126,7 @@ model Transaction {
   orderId       String?
   depositRequest DepositRequest? @relation(fields: [depositRequestId], references: [id])
   depositRequestId String?
-  referenceId   String?         // External reference ID if needed
+  referenceId   String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
@@ -231,8 +231,8 @@ model ProductKey {
   isSold    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  order     Order?   @relation // Remove fields and references here
-  orderId   String?  @unique   // Ensure this field is unique for one-to-one
+  order     Order?   @relation
+  orderId   String?  @unique
 
   @@index([productId])
   @@index([isSold])

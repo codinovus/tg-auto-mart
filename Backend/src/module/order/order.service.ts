@@ -9,6 +9,7 @@ import {
 } from './model/order.dto';
 import { ProductKeyService } from '../product-key/product-key.service';
 import { ProductKeyResponseDto } from '../product-key/model/product-key.dto';
+import { SearchableField, SearchBuilder } from 'src/shared/base/search-builder.util';
 
 @Injectable()
 export class OrderService {
@@ -158,23 +159,51 @@ export class OrderService {
   }
 
   // Get Methods
-  async getAllOrders(page: number, limit: number): Promise<GetAllOrdersResponseDto> {
-    // Convert page and limit to numbers in case they come as strings
+  async getAllOrders(
+    page: number, 
+    limit: number, 
+    search?: string
+  ): Promise<GetAllOrdersResponseDto> {
     const pageNum = Number(page);
     const limitNum = Number(limit);
     
     this.validatePagination(pageNum, limitNum);
   
-    const totalItems = await this.prisma.order.count();
+    const searchableFields: SearchableField[] = [
+      { name: 'id', type: 'string', exact: true },
+      { name: 'total', type: 'number' },
+      { name: 'status', type: 'enum', enumType: 'OrderStatus' },
+      { 
+        name: 'user', 
+        nested: true, 
+        relationField: 'user', 
+        searchableFields: [
+          { name: 'username', type: 'string' },
+        ] 
+      },
+      { name: 'updatedAt', type: 'date' },
+    ];
+  
+    const whereClause = SearchBuilder.buildWhereClause(search, searchableFields);
+  
+    const totalItems = await this.prisma.order.count({
+      where: whereClause
+    });
+  
     const orders = await this.prisma.order.findMany({
+      where: whereClause,
       skip: (pageNum - 1) * limitNum,
-      take: limitNum, // Now it's a number
+      take: limitNum,
       include: {
         product: true,
         payment: true,
         promoCode: true,
         disputes: true,
         Transaction: true,
+        user: true,
+      },
+      orderBy: {
+        updatedAt: 'desc',
       },
     });
   

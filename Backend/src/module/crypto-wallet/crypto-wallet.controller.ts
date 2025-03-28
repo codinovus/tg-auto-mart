@@ -40,8 +40,9 @@ export class CryptoWalletController {
   async getAllWallets(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('search') search?: string,
   ): Promise<GetAllCryptoWalletsResponseDto> {
-    return this.cryptoWalletService.getAllCryptoWallets(page, limit);
+    return this.cryptoWalletService.getAllCryptoWallets(page, limit, search);
   }
 
   @Get(':id')

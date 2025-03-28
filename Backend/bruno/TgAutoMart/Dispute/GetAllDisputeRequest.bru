@@ -1,0 +1,15 @@
+meta {
+  name: GetAllDisputeRequest
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:3000/disputes?search=user
+  body: none
+  auth: none
+}
+
+params:query {
+  search: user
+}

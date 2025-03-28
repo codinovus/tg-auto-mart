@@ -1,0 +1,17 @@
+meta {
+  name: GetAllPromoCode
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:3000/promo-codes?page=1&limit=10&search=
+  body: json
+  auth: none
+}
+
+params:query {
+  page: 1
+  limit: 10
+  search: 
+}

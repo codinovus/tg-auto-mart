@@ -41,8 +41,9 @@ export class DisputeController {
   async getAllDisputes(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('search') search?: string,
   ): Promise<GetAllDisputesResponseDto> {
-    return this.disputeService.getAllDisputes(page, limit);
+    return this.disputeService.getAllDisputes(page, limit, search);
   }
 
   @Get(':id')

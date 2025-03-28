@@ -82,6 +82,7 @@ export class ProductService {
     limit: number,
     categoryId?: string,
     storeId?: string,
+    search?: string,
   ): Promise<GetAllProductsResponseDto> {
     this.validatePagination(page, limit);
   
@@ -93,12 +94,43 @@ export class ProductService {
       filters.storeId = storeId;
     }
   
+    if (search) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search);
+      const isNumber = !isNaN(parseFloat(search));
+      
+      filters.OR = [
+        ...(isUuid ? [{ id: search }] : []),
+        { 
+          name: {
+            contains: search,
+            mode: 'insensitive'
+          }
+        },
+        ...(isNumber ? [{ price: parseFloat(search) }] : []),
+        ...(isNumber ? [{ stock: parseInt(search, 10) }] : []),
+        {
+          category: {
+            name: {
+              contains: search,
+              mode: 'insensitive'
+            }
+          }
+        }
+      ];
+    }
+  
     const totalItems = await this.prisma.product.count({ where: filters });
   
     const products = await this.prisma.product.findMany({
       where: filters,
       skip: (page - 1) * limit,
-      take: limit, // Ensure limit is a number
+      take: limit,
+      include: {
+        category: true
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
     });
   
     const productResponseDtos: ProductResponseDto[] = products.map((product) => this.mapToProductResponseDto(product));

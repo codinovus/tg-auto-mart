@@ -1,0 +1,17 @@
+meta {
+  name: GetAllProducts
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://localhost:3000/products?page=1&limit=10&search=razor
+  body: none
+  auth: none
+}
+
+params:query {
+  page: 1
+  limit: 10
+  search: razor
+}

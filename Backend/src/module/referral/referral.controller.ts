@@ -32,7 +32,7 @@ import {
     async getAllReferrals(
       @Query('page') page = 1,
       @Query('limit') limit = 10,
-      @Query('searchQuery') searchQuery = '',
+      @Query('search') searchQuery = '',
     ): Promise<GetAllReferralsResponseDto> {
       return this.referralService.getAllReferrals(page, limit, searchQuery);
     }

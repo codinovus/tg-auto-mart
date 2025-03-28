@@ -39,8 +39,9 @@ export class ProductKeyController {
   async getAllProductKeys(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('search') search?: string,
   ): Promise<GetAllProductKeysResponseDto> {
-    return this.productKeyService.getAllProductKeys(page, limit);
+    return this.productKeyService.getAllProductKeys(page, limit, search);
   }
 
   @Get(':id')

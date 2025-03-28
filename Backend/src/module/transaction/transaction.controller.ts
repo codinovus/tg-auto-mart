@@ -1,11 +1,13 @@
 import {
     Body,
     Controller,
+    DefaultValuePipe,
     Delete,
     Get,
     HttpCode,
     HttpStatus,
     Param,
+    ParseIntPipe,
     Post,
     Put,
     Query,
@@ -18,6 +20,7 @@ import {
     UpdateTransactionDto,
     GetTransactionByIdResponseDto,
   } from './model/transaction.dto';
+import { TransactionType, PaymentStatus } from '@prisma/client';
   
   @Controller('transactions')
   export class TransactionController {
@@ -31,10 +34,13 @@ import {
   
     @Get()
     async getAllTransactions(
-      @Query('page') page = 1,
-      @Query('limit') limit = 10,
+      @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+      @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+      @Query('search') search?: string,
+      @Query('transactionType') transactionType?: TransactionType,
+      @Query('paymentStatus') paymentStatus?: PaymentStatus,
     ): Promise<GetAllTransactionsResponseDto> {
-      return this.transactionService.getAllTransactions(page, limit);
+      return this.transactionService.getAllTransactions(page, limit, search, transactionType, paymentStatus);
     }
   
     @Get(':id')

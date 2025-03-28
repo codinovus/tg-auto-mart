@@ -29,15 +29,16 @@ export class ProductController {
     const product = await this.productService.createProduct(createProductDto);
     return { success: true, message: 'Product created successfully', data: product };
   }
-
+  
   @Get()
   async getAllProducts(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
     @Query('categoryId') categoryId?: string,
     @Query('storeId') storeId?: string,
+    @Query('search') search?: string,
   ): Promise<GetAllProductsResponseDto> {
-    return this.productService.getAllProducts(page, limit, categoryId, storeId);
+    return this.productService.getAllProducts(page, limit, categoryId, storeId, search);
   }
 
   @Get(':id')

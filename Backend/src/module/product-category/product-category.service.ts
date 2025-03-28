@@ -71,17 +71,41 @@ export class ProductCategoryService {
   async getAllProductCategories(
     page: number,
     limit: number,
-    searchQuery?: string,
+    search?: string,
   ): Promise<GetAllProductCategoriesResponseDto> {
+    this.validatePagination(page, limit);
+  
+    let whereClause = {};
+  
+    if (search) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search);
+      
+      whereClause = {
+        OR: [
+          ...(isUuid ? [{ id: search }] : []),
+          {
+            name: {
+              contains: search,
+              mode: 'insensitive'
+            }
+          }
+        ]
+      };
+    }
+  
     const totalItems = await this.prisma.productCategory.count({
-      where: { name: { contains: searchQuery, mode: 'insensitive' } },
+      where: whereClause,
     });
   
     const categories = await this.prisma.productCategory.findMany({
-      where: { name: { contains: searchQuery, mode: 'insensitive' } },
+      where: whereClause,
       skip: (page - 1) * limit,
       take: limit,
+      orderBy: {
+        name: 'asc',
+      },
     });
+  
     const categoryResponseDtos: ProductCategoryResponseDto[] = await Promise.all(
       categories.map(async (category) => {
         const productCount = await this.prisma.product.count({

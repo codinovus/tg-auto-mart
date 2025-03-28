@@ -1,0 +1,17 @@
+meta {
+  name: GetAllOrder
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:3000/orders?page=1&limit=10&search=user
+  body: none
+  auth: none
+}
+
+params:query {
+  page: 1
+  limit: 10
+  search: user
+}

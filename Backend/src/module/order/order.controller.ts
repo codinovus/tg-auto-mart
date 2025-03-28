@@ -1,11 +1,13 @@
 import {
     Body,
     Controller,
+    DefaultValuePipe,
     Delete,
     Get,
     HttpCode,
     HttpStatus,
     Param,
+    ParseIntPipe,
     Post,
     Put,
     Query,
@@ -31,10 +33,11 @@ import {
   
     @Get()
     async getAllOrders(
-      @Query('page') page = 1,
-      @Query('limit') limit = 10,
+      @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+      @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+      @Query('search') search?: string,
     ): Promise<GetAllOrdersResponseDto> {
-      return this.orderService.getAllOrders(page, limit);
+      return this.orderService.getAllOrders(page, limit, search);
     }
   
     @Get('/user/:userId')

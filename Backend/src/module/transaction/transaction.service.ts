@@ -11,6 +11,7 @@ import {
   GetAllTransactionsResponseDto,
   GetTransactionByIdResponseDto,
 } from './model/transaction.dto';
+import { TransactionType, PaymentStatus } from '@prisma/client';
 
 @Injectable()
 export class TransactionService {
@@ -85,38 +86,71 @@ export class TransactionService {
   }
 
   // Get Methods
-  async getAllTransactions(page: number, limit: number): Promise<GetAllTransactionsResponseDto> {
-    this.validatePagination(page, limit);
+async getAllTransactions(
+  page: number,
+  limit: number,
+  search?: string, // New parameter for search
+  transactionType?: TransactionType, // New parameter for transaction type
+  paymentStatus?: PaymentStatus, // New parameter for payment status
+): Promise<GetAllTransactionsResponseDto> {
+  this.validatePagination(page, limit);
 
-    const totalItems = await this.prisma.transaction.count();
-    const transactions = await this.prisma.transaction.findMany({
-      skip: (page - 1) * limit,
-      take: limit,
-      include: {
-        wallet: true,
-        user: true,
-        order: true,
-        depositRequest: true,
-      },
-    });
+  let whereClause = {};
 
-    const transactionResponseDtos: TransactionResponseDto[] = transactions.map(transaction =>
-      this.mapToTransactionResponseDto(transaction),
-    );
+  // Construct the where clause based on search criteria
+  if (search || transactionType || paymentStatus) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search || '');
 
-    const totalPages = Math.ceil(totalItems / limit);
-    return new GetAllTransactionsResponseDto(
-      true,
-      'Transactions fetched successfully',
-      transactionResponseDtos,
-      {
-        totalItems,
-        totalPages,
-        currentPage: page,
-        perPage: limit,
-      },
-    );
+    whereClause = {
+      OR: [
+        ...(isUuid ? [{ id: search }] : []),
+        {
+          user: {
+            username: {
+              contains: search || '', // Search by username
+              mode: 'insensitive',
+            },
+          },
+        },
+        ...(paymentStatus ? [{ status: paymentStatus }] : []),
+        ...(transactionType ? [{ type: transactionType }] : []),
+      ],
+    };
   }
+
+  const totalItems = await this.prisma.transaction.count({
+    where: whereClause,
+  });
+
+  const transactions = await this.prisma.transaction.findMany({
+    where: whereClause,
+    skip: (page - 1) * limit,
+    take: limit,
+    include: {
+      wallet: true,
+      user: true,
+      order: true,
+      depositRequest: true,
+    },
+  });
+
+  const transactionResponseDtos: TransactionResponseDto[] = transactions.map(transaction =>
+    this.mapToTransactionResponseDto(transaction),
+  );
+
+  const totalPages = Math.ceil(totalItems / limit);
+  return new GetAllTransactionsResponseDto(
+    true,
+    'Transactions fetched successfully',
+    transactionResponseDtos,
+    {
+      totalItems,
+      totalPages,
+      currentPage: page,
+      perPage: limit,
+    },
+  );
+}
 
   async getTransactionById(transactionId: string): Promise<GetTransactionByIdResponseDto> {
     if (!transactionId) {

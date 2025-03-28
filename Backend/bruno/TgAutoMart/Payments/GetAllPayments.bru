@@ -1,0 +1,17 @@
+meta {
+  name: GetAllPayments
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:3000/payments?page=1&limit=10&search=pending
+  body: none
+  auth: none
+}
+
+params:query {
+  page: 1
+  limit: 10
+  search: pending
+}

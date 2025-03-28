@@ -11,6 +11,7 @@ import {
   UpdateDepositRequestDto,
 } from './model/deposit-request.dto';
 import { PaymentGatewayService } from '../payment-gateway/payment-gateway.service';
+import { SearchableField, SearchBuilder } from 'src/shared/base/search-builder.util';
 
 @Injectable()
 export class DepositRequestService {
@@ -74,12 +75,33 @@ export class DepositRequestService {
   async getAllDepositRequests(
     page: number,
     limit: number,
+    search?: string,
   ): Promise<GetAllDepositRequestsResponseDto> {
     this.validatePagination(page, limit);
-
-    const totalItems = await this.prisma.depositRequest.count();
-
+  
+    const searchableFields: SearchableField[] = [
+      { name: 'status', type: 'enum', enumType: 'PaymentStatus' },
+      { 
+        name: 'user', 
+        nested: true, 
+        relationField: 'user', 
+        searchableFields: [
+          { name: 'username', type: 'string' },
+          { name: 'telegramId', type: 'string' }
+        ] 
+      },
+      { name: 'updatedAt', type: 'date' }
+    ];
+  
+    const whereClause = SearchBuilder.buildWhereClause(search, searchableFields);
+  
+    // Count with search criteria
+    const totalItems = await this.prisma.depositRequest.count({
+      where: whereClause
+    });
+  
     const depositRequests = await this.prisma.depositRequest.findMany({
+      where: whereClause,
       skip: (page - 1) * limit,
       take: limit,
       include: {
@@ -87,11 +109,11 @@ export class DepositRequestService {
         Transaction: true,
       },
     });
-
+  
     const responseDtos = depositRequests.map((request) =>
       this.mapDepositRequestToResponse(request),
     );
-
+  
     const totalPages = Math.ceil(totalItems / limit);
     return new GetAllDepositRequestsResponseDto(
       true,

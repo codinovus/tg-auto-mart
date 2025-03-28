@@ -33,9 +33,10 @@ import {
     @Get()
     async getAllDepositRequests(
       @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-          @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+      @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+      @Query('search') search?: string,
     ): Promise<GetAllDepositRequestsResponseDto> {
-      return this.depositRequestService.getAllDepositRequests(page, limit);
+      return this.depositRequestService.getAllDepositRequests(page, limit, search);
     }
   
     @Get(':id')

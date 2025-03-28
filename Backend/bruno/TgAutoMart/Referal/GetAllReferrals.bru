@@ -1,0 +1,17 @@
+meta {
+  name: GetAllReferrals
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:3000/referrals?page=1&limit=10&searchQuery=someUsername
+  body: none
+  auth: none
+}
+
+params:query {
+  page: 1
+  limit: 10
+  searchQuery: someUsername
+}

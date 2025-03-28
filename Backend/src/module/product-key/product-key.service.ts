@@ -69,19 +69,59 @@ export class ProductKeyService {
   async getAllProductKeys(
     page: number,
     limit: number,
+    search?: string,
   ): Promise<GetAllProductKeysResponseDto> {
     this.validatePagination(page, limit);
-
-    const totalItems = await this.prisma.productKey.count();
+  
+    let whereClause = {};
+  
+    if (search) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search);
+      const isBool = ['true', 'false'].includes(search.toLowerCase());
+      
+      whereClause = {
+        OR: [
+          ...(isUuid ? [{ id: search }] : []),
+          ...(isUuid ? [{ productId: search }] : []),
+          {
+            key: {
+              contains: search,
+              mode: 'insensitive'
+            }
+          },
+          {
+            product: {
+              name: {
+                contains: search,
+                mode: 'insensitive'
+              }
+            }
+          },
+          ...(isBool ? [{ isSold: search.toLowerCase() === 'true' }] : [])
+        ]
+      };
+    }
+  
+    const totalItems = await this.prisma.productKey.count({
+      where: whereClause
+    });
+  
     const keys = await this.prisma.productKey.findMany({
+      where: whereClause,
       skip: (page - 1) * limit,
       take: limit,
+      include: {
+        product: true
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
     });
-
+  
     const productKeyResponseDtos: ProductKeyResponseDto[] = keys.map((key) =>
       this.mapToProductKeyResponseDto(key),
     );
-
+  
     const totalPages = Math.ceil(totalItems / limit);
     return new GetAllProductKeysResponseDto(
       true,

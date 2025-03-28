@@ -66,17 +66,43 @@ export class StoreService {
   }
 
   // Get Methods
-  async getAllStores(page: number, limit: number): Promise<GetAllStoresResponseDto> {
+  async getAllStores(
+    page: number,
+    limit: number,
+    searchQuery?: string,
+  ): Promise<GetAllStoresResponseDto> {
     this.validatePagination(page, limit);
-
-    const totalItems = await this.prisma.store.count();
+  
+    let whereClause = {};
+  
+    if (searchQuery) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(searchQuery);
+      
+      whereClause = {
+        OR: [
+          ...(isUuid ? [{ id: searchQuery }] : []),
+          {
+            name: {
+              contains: searchQuery,
+              mode: 'insensitive',
+            },
+          },
+        ],
+      };
+    }
+  
+    const totalItems = await this.prisma.store.count({
+      where: whereClause,
+    });
+  
     const stores = await this.prisma.store.findMany({
+      where: whereClause,
       skip: (page - 1) * limit,
       take: limit,
     });
-
+  
     const storeResponseDtos: StoreResponseDto[] = stores.map((store) => this.mapToStoreResponseDto(store));
-
+  
     const totalPages = Math.ceil(totalItems / limit);
     return new GetAllStoresResponseDto(
       true,

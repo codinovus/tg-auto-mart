@@ -72,13 +72,68 @@ export class PromoCodeService {
   }
 
   // Get Methods
-  async getAllPromoCodes(page: number, limit: number): Promise<GetAllPromoCodesResponseDto> {
+  async getAllPromoCodes(
+    page: number, 
+    limit: number,
+    search?: string
+  ): Promise<GetAllPromoCodesResponseDto> {
     this.validatePagination(page, limit);
   
-    const totalItems = await this.prisma.promoCode.count();
+    let whereClause = {};
+  
+    if (search) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search);
+      const isNumber = !isNaN(parseFloat(search));
+      
+      let isDate = false;
+      let dateStart: Date | null = null;
+      let dateEnd: Date | null = null;
+      
+      try {
+        const potentialDate = new Date(search);
+        if (!isNaN(potentialDate.getTime())) {
+          isDate = true;
+          dateStart = new Date(potentialDate);
+          dateStart.setHours(0, 0, 0, 0);
+          
+          dateEnd = new Date(potentialDate);
+          dateEnd.setHours(23, 59, 59, 999);
+        }
+      } catch (e) {
+        console.warn(e)
+      }
+  
+      whereClause = {
+        OR: [
+          ...(isUuid ? [{ id: search }] : []),
+          {
+            code: {
+              contains: search,
+              mode: 'insensitive'
+            }
+          },
+          ...(isNumber ? [{ discount: parseFloat(search) }] : []),
+          ...(isDate && dateStart && dateEnd ? [{
+            expiresAt: {
+              gte: dateStart,
+              lte: dateEnd
+            }
+          }] : [])
+        ]
+      };
+    }
+  
+    const totalItems = await this.prisma.promoCode.count({
+      where: whereClause
+    });
+  
     const promoCodes = await this.prisma.promoCode.findMany({
+      where: whereClause,
       skip: (page - 1) * limit,
-      take: limit, // Ensure limit is a number
+      take: limit,
+      orderBy: {
+        updatedAt: 'desc',
+      },
     });
   
     const promoCodeResponseDtos: PromoCodeResponseDto[] = promoCodes.map(promoCode =>
