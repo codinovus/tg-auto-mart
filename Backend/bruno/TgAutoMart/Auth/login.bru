@@ -4,8 +4,15 @@ meta {
   seq: 1
 }
 
-get {
+post {
   url: http://localhost:3000/auth/login
-  body: none
+  body: json
   auth: none
+}
+
+body:json {
+  {
+    "username": "user5",
+    "password": "user5"
+  }
 }

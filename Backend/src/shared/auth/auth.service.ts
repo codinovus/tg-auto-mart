@@ -1,153 +1,116 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable no-useless-catch */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UserService } from 'src/module/user/user.service';
-import { LoginDto, RegisterDto, AuthResponseDto, JwtPayload, RegisterUserModel } from 'src/module/user/model/user.model';
 import * as bcrypt from 'bcrypt';
-import { Role } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { RegisterUserModel } from 'src/module/user/model/user.model';
+import { UserService } from 'src/module/user/user.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly userService: UserService,
-    private readonly jwtService: JwtService,
+    private userService: UserService,
+    private jwtService: JwtService,
+    private configService: ConfigService,
+    private prisma: PrismaService,
   ) {}
 
   async validateUser(username: string, password: string): Promise<any> {
     const user = await this.userService.findOneByUsernameForAuth(username);
     
-    if (!user) {
-      return null;
+    if (!user || !user.password) {
+      throw new UnauthorizedException('Invalid credentials');
     }
     
-    if (!user.password) {
-      return null;
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
     }
     
-    try {
-      const isPasswordValid = await bcrypt.compare(password, user.password);
-      
-      if (!isPasswordValid) {
-        return null;
-      }
-      
-      const { password: _password, ...result } = user;
-      return result;
-    } catch (error) {
-      return null;
-    }
+    return { id: user.id, username: user.username, role: user.role };
   }
 
-  async login(loginDto: LoginDto): Promise<AuthResponseDto> {
-    const { username, password } = loginDto;
-    
-    try {
-      const dbUser = await this.userService.findOneByUsername(username);
-      
-      if (!dbUser) {
-        throw new UnauthorizedException('Invalid credentials');
-      }
-      
-      const user = await this.validateUser(username, password);
-      
-      if (!user) {
-        throw new UnauthorizedException('Invalid credentials');
-      }
-      
-      const payload: JwtPayload = {
-        sub: user.id.toString(),
-        username: user.username || '',
-        role: user.role,
-      };
-      
-      const token = this.jwtService.sign(payload);
-      
-      const response = new AuthResponseDto(true, 'Login successful', token, user);
-      
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
 
-  async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
-    if (registerDto.username) {
-      const existingUser = await this.userService.findOneByUsername(registerDto.username);
-      if (existingUser) {
-        throw new BadRequestException('Username already exists');
-      }
-    }
-  
-    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
-    
-    const userModel: RegisterUserModel = {
-      username: registerDto.username,
-      password: hashedPassword,
-      telegramId: registerDto.telegramId,
-      role: registerDto.role ? registerDto.role as Role : undefined
+  async login(user: any) {
+    const payload = { username: user.username, sub: user.id, role: user.role };
+    const accessToken = this.jwtService.sign(payload);
+    const refreshToken = this.jwtService.sign(payload, {
+      expiresIn: '7d',
+    });
+
+    // Update user with refresh token
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { refreshToken },
+    });
+
+    // Get complete user profile
+    const userProfile = await this.userService.getProfile(user.id);
+
+    // Get token expiration times
+    const decodedAccess = this.jwtService.decode(accessToken);
+    const decodedRefresh = this.jwtService.decode(refreshToken);
+
+    return {
+      user: userProfile,
+      tokens: {
+        accessToken,
+        refreshToken,
+        accessTokenExpires: new Date(decodedAccess.exp * 1000).toISOString(),
+        refreshTokenExpires: new Date(decodedRefresh.exp * 1000).toISOString(),
+      },
+      message: 'Login successful'
     };
-  
-    const result = await this.userService.registerUser(userModel);
-    
-    const user = 'user' in result ? result.user : result;
-  
-    const payload: JwtPayload = {
-      sub: user.id.toString(),
-      username: user.username || '',
-      role: user.role,
-    };
-  
-    const token = this.jwtService.sign(payload);
-    return new AuthResponseDto(true, 'Registration successful', token, user);
   }
 
-  async loginWithTelegram(telegramId: string): Promise<AuthResponseDto> {
+  async register(userRegistrationData: RegisterUserModel) {
+    return this.userService.registerUser(userRegistrationData);
+  }
+
+  async refreshToken(refreshToken: string) {
     try {
-      const user = await this.userService.getUserByTelegramId(telegramId);
+      // Verify the token
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get<string>('JWT_SECRET') || 'yourSecretKey',
+      });
       
-      const payload: JwtPayload = {
-        sub: user.id.toString(),
-        username: user.username || 'telegram_user',
-        role: user.role,
-      };
+      // Find the user by ID
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+      });
 
-      const token = this.jwtService.sign(payload);
-      return new AuthResponseDto(true, 'Login with Telegram successful', token, user);
-    } catch (error) {
-      if (error.status === 404) { const username = `telegram_${Date.now()}`;
-        
-        const result = await this.userService.registerUser ({
-          username,
-          telegramId,
-        });
-        
-        const user = 'user' in result ? result.user : result;
-
-        const payload: JwtPayload = {
-          sub: user.id.toString(),
-          username: user.username || 'telegram_user',
-          role: user.role,
-        };
-
-        const token = this.jwtService.sign(payload);
-        return new AuthResponseDto(true, 'User  registered and logged in via Telegram', token, user);
+      if (!user || user.refreshToken !== refreshToken) {
+        throw new UnauthorizedException('Invalid refresh token');
       }
-      throw new UnauthorizedException('Unable to login with Telegram');
+
+      const newPayload = { username: user.username, sub: user.id };
+      const newAccessToken = this.jwtService.sign(newPayload);
+      const newRefreshToken = this.jwtService.sign(newPayload, {
+        expiresIn: '7d',
+      });
+
+      // Update user with new refresh token
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { refreshToken: newRefreshToken },
+      });
+
+      return {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      };
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      throw new UnauthorizedException('Invalid refresh token');
     }
   }
 
-  async getUserProfile(userId: string) {
-    return this.userService.getProfile(userId);
-  }
-
-  validateToken(token: string) {
-    try {
-      return this.jwtService.verify(token);
-    } catch {
-      throw new UnauthorizedException('Invalid token');
-    }
+  async logout(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { refreshToken: null },
+    });
+    return { message: 'Logout successful' };
   }
 }

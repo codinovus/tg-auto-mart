@@ -1,52 +1,46 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  UseGuards,
-  Request,
-} from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Request, Get } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import {
-  LoginDto,
-  RegisterDto,
-  AuthResponseDto,
-  UserProfileDto,
-} from 'src/module/user/model/user.model';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { LocalAuthGuard } from './local-auth.guard';
+import { RegisterUserModel } from 'src/module/user/model/user.model';
+import { RefreshTokenDto } from './refresh-token.dto';
+import { UserService } from 'src/module/user/user.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
-
-  @Post('login')
-  async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
-    return this.authService.login(loginDto);
-  }
+  constructor(
+    private readonly authService: AuthService,
+    private readonly userService: UserService,
+  ) {}
 
   @Post('register')
-  async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
-    return this.authService.register(registerDto);
+  async register(@Body() userRegistrationData: RegisterUserModel) {
+    return this.authService.register(userRegistrationData);
   }
 
-  @Post('telegram-login')
-  async loginWithTelegram(
-    @Body() { telegramId }: { telegramId: string },
-  ): Promise<AuthResponseDto> {
-    return this.authService.loginWithTelegram(telegramId);
+  @UseGuards(LocalAuthGuard)
+  @Post('login')
+  async login(@Request() req) {
+    return this.authService.login(req.user);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Get('profile')
-  async getProfile(@Request() req): Promise<UserProfileDto> {
-    return this.authService.getUserProfile(req.user.id);
+  @Post('refresh-token')
+  async refreshToken(@Body() refreshTokenDto: RefreshTokenDto) {
+    return this.authService.refreshToken(refreshTokenDto.refresh_token);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  getMe(@Request() req): { id: string; username: string; role: string } {
-    const { id, username, role } = req.user;
-    return { id, username, role };
+  async getProfile(@Request() req) {
+    // Using the user service to get the complete profile
+    // This resolves the eslint warning about not having awaits
+    return await this.userService.getProfile(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  async logout(@Request() req) {
+    return await this.authService.logout(req.user.id);
   }
 }
