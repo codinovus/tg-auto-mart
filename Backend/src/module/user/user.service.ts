@@ -13,7 +13,7 @@ import {
   UserResponseDto,
 } from './model/user.model';
 import * as bcrypt from 'bcrypt';
-
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class UserService {
@@ -52,17 +52,20 @@ export class UserService {
       const existingUser = await this.prisma.user.findUnique({
         where: { telegramId: userRegistrationData.telegramId },
       });
-  
+
       if (existingUser) {
         if (!existingUser.password && userRegistrationData.password) {
-          const hashedPassword = await bcrypt.hash(userRegistrationData.password, 10);
+          const hashedPassword = await bcrypt.hash(
+            userRegistrationData.password,
+            10,
+          );
           const updatedUser = await this.prisma.user.update({
             where: { id: existingUser.id },
-            data: { password: hashedPassword }
+            data: { password: hashedPassword },
           });
           return updatedUser;
         }
-        
+
         return existingUser;
       }
     }
@@ -70,7 +73,7 @@ export class UserService {
       const existingUserByUsername = await this.prisma.user.findUnique({
         where: { username: userRegistrationData.username },
       });
-  
+
       if (existingUserByUsername) {
         throw new BadRequestException('Username already exists');
       }
@@ -88,7 +91,7 @@ export class UserService {
           role: userRegistrationData.role || 'CUSTOMER',
         },
       });
-  
+
       const wallet = await prisma.wallet.create({
         data: {
           userId: user.id,
@@ -100,21 +103,89 @@ export class UserService {
   }
 
   // Get Methods
-  async getUsers(page: number, limit: number): Promise<{ users: UserResponseDto[]; pagination: PaginationMeta }> {
+  async getUsers(
+    page: number,
+    limit: number,
+    search?: string,
+  ): Promise<{ users: UserResponseDto[]; pagination: PaginationMeta }> {
     this.validatePagination(page, limit);
 
-    const totalItems = await this.prisma.user.count();
+    let whereClause = {};
+
+    if (search && search.trim() !== '') {
+      const searchTerm = search.trim();
+      const isNumber =
+        !isNaN(parseFloat(searchTerm)) && isFinite(Number(searchTerm));
+      const isUuid =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          searchTerm,
+        );
+
+      whereClause = {
+        OR: [
+          // Basic fields
+          ...(isUuid ? [{ id: searchTerm }] : []),
+          { username: { contains: searchTerm, mode: 'insensitive' } },
+          { telegramId: { contains: searchTerm, mode: 'insensitive' } },
+
+          // Wallet relation
+          ...(isNumber
+            ? [
+                {
+                  wallet: {
+                    balance: parseFloat(searchTerm),
+                  },
+                },
+              ]
+            : []),
+
+          // Orders relation
+          ...(isNumber
+            ? [
+                {
+                  orders: {
+                    some: {
+                      total: parseFloat(searchTerm),
+                    },
+                  },
+                },
+              ]
+            : []),
+
+          // Role enum
+          ...(Object.values(Role).includes(searchTerm.toUpperCase() as Role)
+            ? [{ role: searchTerm.toUpperCase() as Role }]
+            : []),
+        ],
+      };
+    }
+
+    const totalItems = await this.prisma.user.count({
+      where: whereClause,
+    });
 
     const users = await this.prisma.user.findMany({
+      where: whereClause,
       skip: (page - 1) * limit,
       take: limit,
       include: {
         wallet: true,
-        orders: true,
+        orders: {
+          include: {
+            product: true,
+            payment: true,
+          },
+        },
+        cryptoWallets: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     });
 
-    const userResponseDtos: UserResponseDto[] = users.map((user) => this.mapToUserResponseDto(user));
+    const userResponseDtos: UserResponseDto[] = users.map((user) =>
+      this.mapToUserResponseDto(user),
+    );
 
     const totalPages = Math.ceil(totalItems / limit);
     const pagination: PaginationMeta = {
@@ -126,7 +197,6 @@ export class UserService {
 
     return { users: userResponseDtos, pagination };
   }
-
   async getUserById(id: string): Promise<UserResponseDto> {
     await this.validateUserExists(id);
 
@@ -189,13 +259,13 @@ export class UserService {
   }
 
   // Update Methods
-  async updateUser  (
+  async updateUser(
     userId: string,
     updateData: UpdateUserDto,
   ): Promise<GetUserByIdResponseDto> {
     await this.validateUserExists(userId);
 
-    const updatedUser  = await this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: {
         username: updateData.username ?? undefined,
@@ -206,7 +276,8 @@ export class UserService {
       include: { wallet: true, orders: true },
     });
 
-    const userResponse: UserResponseDto = this.mapToUserResponseDto(updatedUser);
+    const userResponse: UserResponseDto =
+      this.mapToUserResponseDto(updatedUser);
 
     return new GetUserByIdResponseDto(
       true,
@@ -216,12 +287,17 @@ export class UserService {
   }
 
   // Delete Methods
-  async deleteUser (userId: string): Promise<{ success: boolean; message: string }> {
+  async deleteUser(
+    userId: string,
+  ): Promise<{ success: boolean; message: string }> {
     await this.validateUserExists(userId);
 
     await this.prisma.user.delete({ where: { id: userId } });
 
-    return { success: true, message: `User  with ID ${userId} has been deleted successfully` };
+    return {
+      success: true,
+      message: `User  with ID ${userId} has been deleted successfully`,
+    };
   }
 
   async getUserByTelegramId(telegramId: string): Promise<UserResponseDto> {
@@ -234,7 +310,9 @@ export class UserService {
     });
 
     if (!user) {
-      throw new NotFoundException(`User  with Telegram ID ${telegramId} not found`);
+      throw new NotFoundException(
+        `User  with Telegram ID ${telegramId} not found`,
+      );
     }
 
     return this.mapToUserResponseDto(user);
@@ -248,7 +326,7 @@ export class UserService {
         orders: true,
       },
     });
-  
+
     if (!user) {
       return null;
     }
@@ -266,10 +344,11 @@ export class UserService {
         telegramId: true,
       },
     });
-  
+
     if (!user) {
       return null;
     }
     return user;
   }
 }
+

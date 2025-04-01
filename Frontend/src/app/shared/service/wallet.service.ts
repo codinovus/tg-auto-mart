@@ -38,10 +38,18 @@ export class WalletService {
    * @param page Page number (default: 1)
    * @param limit Number of items per page (default: 10)
    */
-  getAllWallets(page: number = 1, limit: number = 10): Observable<GetAllWalletsResponseDto> {
+  getAllWallets(
+    page: number = 1,
+    limit: number = 10,
+    search?: string
+  ): Observable<GetAllWalletsResponseDto> {
     let params = new HttpParams()
       .set('page', page.toString())
       .set('limit', limit.toString());
+
+    if (search && search.trim() !== '') {
+      params = params.set('search', search.trim());
+    }
 
     return this.http.get<GetAllWalletsResponseDto>(this.apiUrl, { params });
   }

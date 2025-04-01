@@ -1,5 +1,4 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Table } from 'primeng/table';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { TableModule } from 'primeng/table';
@@ -14,34 +13,24 @@ import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, BehaviorSubject, debounceTime, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-payment',
     templateUrl: './listpayment.component.html',
     styleUrls: ['./listpayment.component.scss'],
     standalone: true,
-    imports: [
-        TableModule,
-        HttpClientModule,
-        CommonModule,
-        InputTextModule,
-        ButtonModule,
-        IconFieldModule,
-        InputIconModule,
-        PaginatorModule,
-        ConfirmDialogModule,
-        ToastModule
-    ],
+    imports: [TableModule, HttpClientModule, CommonModule, InputTextModule, ButtonModule, IconFieldModule, InputIconModule, PaginatorModule, ConfirmDialogModule, ToastModule],
     providers: [PaymentService, ConfirmationService, MessageService]
 })
 export class ListPaymentComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
+    private searchQuery$ = new BehaviorSubject<string>('');
     payments!: PaymentResponseDto[];
     loading: boolean = true;
     first: number = 0; // First row offset
     rows: number = 10; // Number of rows per page
-    totalRecords: number = 0; // Total number of
+    totalRecords: number = 0; // Total number of records
 
     constructor(
         private paymentService: PaymentService,
@@ -52,31 +41,40 @@ export class ListPaymentComponent implements OnInit, OnDestroy {
 
     ngOnInit() {
         this.loadPayments();
+        this.setupSearchListener();
     }
 
-    loadPayments(page: number = 1, limit: number = this.rows) {
+    setupSearchListener() {
+        this.searchQuery$.pipe(debounceTime(500), takeUntil(this.unsubscribe$)).subscribe((searchValue) => {
+            this.loadPayments(1, this.rows, searchValue);
+        });
+    }
+
+    loadPayments(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.paymentService.getAllPayments(page, limit)
+        this.paymentService
+            .getAllPayments(page, limit, search)
             .pipe(takeUntil(this.unsubscribe$))
-            .subscribe((response: GetAllPaymentsResponseDto) => {
-                this.payments = response.data;
-                this.totalRecords = response.pagination?.totalItems || 0;
-                this.loading = false;
-            }, error => {
-                this.loading = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to load payments', life: 3000 });
-                console.error('Error loading payments:', error);
-            });
+            .subscribe(
+                (response: GetAllPaymentsResponseDto) => {
+                    this.payments = response.data;
+                    this.totalRecords = response.pagination?.totalItems || 0;
+                    this.loading = false;
+                },
+                (error) => {
+                    this.loading = false;
+                    this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to load payments', life: 3000 });
+                    console.error('Error loading payments:', error);
+                }
+            );
     }
 
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value;
-        console.log('Search Value:', searchValue);
-        // Implement search functionality if needed
+        this.searchQuery$.next(searchValue);
     }
 
     onEdit(paymentId: string | number) {
-        console.log('Edit button clicked for payment ID:', paymentId);
         this.router.navigate(['pages/payment/edit', paymentId]);
     }
 
@@ -108,7 +106,7 @@ export class ListPaymentComponent implements OnInit, OnDestroy {
         this.paymentService.deletePaymentById(String(paymentId)).subscribe({
             next: () => {
                 this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'Payment deleted', life: 3000 });
-                this.loadPayments();
+                this.loadPayments(1, this.rows, this.searchQuery$.getValue());
             },
             error: (error) => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete payment', life: 3000 });
@@ -126,7 +124,7 @@ export class ListPaymentComponent implements OnInit, OnDestroy {
         this.first = event.first;
         this.rows = event.rows;
         const page = event.first / event.rows + 1;
-        this.loadPayments(page, event.rows);
+        this.loadPayments(page, event.rows, this.searchQuery$.getValue());
     }
 
     navigateToCreatePayment() {

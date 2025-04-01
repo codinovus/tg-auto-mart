@@ -1,5 +1,4 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Table } from 'primeng/table';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { TableModule } from 'primeng/table';
@@ -14,7 +13,7 @@ import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, takeUntil, debounceTime, BehaviorSubject } from 'rxjs';
 
 @Component({
     selector: 'app-list-dispute',
@@ -42,6 +41,7 @@ export class ListDisputeComponent implements OnInit, OnDestroy {
     first: number = 0;
     rows: number = 10;
     totalRecords: number = 0;
+    searchQuery$ = new BehaviorSubject<string>('');
 
     constructor(
         private disputeService: DisputeService,
@@ -52,11 +52,12 @@ export class ListDisputeComponent implements OnInit, OnDestroy {
 
     ngOnInit() {
         this.loadDisputes();
+        this.setupSearchListener();
     }
 
-    loadDisputes(page: number = 1, limit: number = this.rows) {
+    loadDisputes(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.disputeService.getAllDisputes(page, limit)
+        this.disputeService.getAllDisputes(page, limit, search)
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllDisputesResponseDto) => {
                 this.disputes = response.data;
@@ -69,14 +70,20 @@ export class ListDisputeComponent implements OnInit, OnDestroy {
             });
     }
 
+    setupSearchListener() {
+        this.searchQuery$
+            .pipe(debounceTime(500), takeUntil(this.unsubscribe$))
+            .subscribe(searchValue => {
+                this.loadDisputes(1, this.rows, searchValue);
+            });
+    }
+
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value;
-        console.log('Search Value:', searchValue);
-        // Implement search functionality if needed
+        this.searchQuery$.next(searchValue);
     }
 
     onEdit(disputeId: string | number) {
-        console.log('Edit button clicked for dispute ID:', disputeId);
         this.router.navigate(['pages/dispute/edit', disputeId]);
     }
 
@@ -119,14 +126,13 @@ export class ListDisputeComponent implements OnInit, OnDestroy {
 
     onView(disputeId: string | number) {
         console.log('View button clicked for dispute ID:', disputeId);
-        // Implement view functionality if needed
     }
 
     onPageChange(event: any) {
         this.first = event.first;
         this.rows = event.rows;
         const page = event.first / event.rows + 1;
-        this.loadDisputes(page, event.rows);
+        this.loadDisputes(page, event.rows, this.searchQuery$.value);
     }
 
     navigateToCreateDispute() {

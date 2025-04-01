@@ -1,5 +1,4 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Table } from 'primeng/table';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { TableModule } from 'primeng/table';
@@ -14,7 +13,7 @@ import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, BehaviorSubject, debounceTime, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-product',
@@ -37,6 +36,7 @@ import { Subject, takeUntil } from 'rxjs';
 })
 export class ListProductComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
+    private searchQuery$ = new BehaviorSubject<string>(''); // BehaviorSubject for search input
     products!: ProductResponseDto[];
     loading: boolean = true;
     first: number = 0; // First row offset
@@ -52,11 +52,20 @@ export class ListProductComponent implements OnInit, OnDestroy {
 
     ngOnInit() {
         this.loadProducts();
+        this.setupSearchListener(); // Set up the search listener
     }
 
-    loadProducts(page: number = 1, limit: number = this.rows) {
+    setupSearchListener() {
+        this.searchQuery$
+            .pipe(debounceTime(500), takeUntil(this.unsubscribe$))
+            .subscribe(searchValue => {
+                this.loadProducts(1, this.rows, searchValue); // Load products with the search value
+            });
+    }
+
+    loadProducts(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.productService.getAllProducts(page, limit)
+        this.productService.getAllProducts(page, limit, search) // Pass the search parameter
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllProductsResponseDto) => {
                 this.products = response.data;
@@ -71,12 +80,10 @@ export class ListProductComponent implements OnInit, OnDestroy {
 
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value;
-        console.log('Search Value:', searchValue);
-        // Implement search functionality if needed
+        this.searchQuery$.next(searchValue); // Update the search query
     }
 
     onEdit(productId: string | number) {
-        console.log('Edit button clicked for product ID:', productId);
         this.router.navigate(['pages/product/edit', productId]);
     }
 
@@ -108,10 +115,10 @@ export class ListProductComponent implements OnInit, OnDestroy {
         this.productService.deleteProductById(String(productId)).subscribe({
             next: () => {
                 this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'Product deleted', life: 3000 });
-                this.loadProducts(); // Reload products after deletion
+                this.loadProducts(1, this.rows, this.searchQuery$.getValue()); // Reload products after deletion
             },
             error: (error) => {
-                this.messageService.add({ severity : 'error', summary: 'Error', detail: 'Failed to delete product', life: 3000 });
+                this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete product', life: 3000 });
                 console.error('Error deleting product:', error);
             }
         });
@@ -126,7 +133,7 @@ export class ListProductComponent implements OnInit, OnDestroy {
         this.first = event.first;
         this.rows = event.rows;
         const page = event.first / event.rows + 1; // Calculate page number
-        this.loadProducts(page, event.rows); // Load products for the new page
+        this.loadProducts(page, event.rows, this.searchQuery$.getValue()); // Load products for the new page
     }
 
     navigateToCreateProduct() {

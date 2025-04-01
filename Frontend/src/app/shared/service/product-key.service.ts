@@ -38,10 +38,18 @@ export class ProductKeyService {
    * @param page Page number (default: 1)
    * @param limit Number of items per page (default: 10)
    */
-  getAllProductKeys(page: number = 1, limit: number = 10): Observable<GetAllProductKeysResponseDto> {
+  getAllProductKeys(
+    page: number = 1,
+    limit: number = 10,
+    search?: string
+  ): Observable<GetAllProductKeysResponseDto> {
     let params = new HttpParams()
       .set('page', page.toString())
       .set('limit', limit.toString());
+
+    if (search && search.trim() !== '') {
+      params = params.set('search', search.trim());
+    }
 
     return this.http.get<GetAllProductKeysResponseDto>(this.apiUrl, { params });
   }

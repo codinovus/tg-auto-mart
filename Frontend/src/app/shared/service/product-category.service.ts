@@ -38,10 +38,18 @@ export class ProductCategoryService {
    * @param page Page number (default: 1)
    * @param limit Number of items per page (default: 10)
    */
-  getAllProductCategories(page: number = 1, limit: number = 10): Observable<GetAllProductCategoriesResponseDto> {
+  getAllProductCategories(
+    page: number = 1,
+    limit: number = 10,
+    search?: string
+  ): Observable<GetAllProductCategoriesResponseDto> {
     let params = new HttpParams()
       .set('page', page.toString())
       .set('limit', limit.toString());
+
+    if (search && search.trim() !== '') {
+      params = params.set('search', search.trim());
+    }
 
     return this.http.get<GetAllProductCategoriesResponseDto>(this.apiUrl, { params });
   }

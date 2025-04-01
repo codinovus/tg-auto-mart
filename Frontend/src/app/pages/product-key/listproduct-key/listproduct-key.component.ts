@@ -1,5 +1,4 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Table } from 'primeng/table';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { TableModule } from 'primeng/table';
@@ -14,7 +13,7 @@ import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, BehaviorSubject, debounceTime, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-product-key',
@@ -37,6 +36,7 @@ import { Subject, takeUntil } from 'rxjs';
 })
 export class ListProductKeyComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
+    private searchQuery$ = new BehaviorSubject<string>(''); // BehaviorSubject for search input
     productKeys!: ProductKeyResponseDto[];
     loading: boolean = true;
     first: number = 0; // First row offset
@@ -52,11 +52,20 @@ export class ListProductKeyComponent implements OnInit, OnDestroy {
 
     ngOnInit() {
         this.loadProductKeys();
+        this.setupSearchListener(); // Set up the search listener
     }
 
-    loadProductKeys(page: number = 1, limit: number = this.rows) {
+    setupSearchListener() {
+        this.searchQuery$
+            .pipe(debounceTime(500), takeUntil(this.unsubscribe$))
+            .subscribe(searchValue => {
+                this.loadProductKeys(1, this.rows, searchValue); // Load keys with the search value
+            });
+    }
+
+    loadProductKeys(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.productKeyService.getAllProductKeys(page, limit)
+        this.productKeyService.getAllProductKeys(page, limit, search) // Pass the search parameter
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllProductKeysResponseDto) => {
                 this.productKeys = response.data;
@@ -71,12 +80,10 @@ export class ListProductKeyComponent implements OnInit, OnDestroy {
 
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value;
-        console.log('Search Value:', searchValue);
-        // Implement search functionality if needed
+        this.searchQuery$.next(searchValue); // Update the search query
     }
 
     onEdit(productKeyId: string | number) {
-        console.log('Edit button clicked for product key ID:', productKeyId);
         this.router.navigate(['pages/product-key/edit', productKeyId]);
     }
 
@@ -107,8 +114,8 @@ export class ListProductKeyComponent implements OnInit, OnDestroy {
     onDelete(productKeyId: string | number) {
         this.productKeyService.deleteProductKeyById(String(productKeyId)).subscribe({
             next: () => {
-                this.messageService.add({ severity: 'info', summary : 'Confirmed', detail: 'Product key deleted', life: 3000 });
-                this.loadProductKeys(); // Reload keys after deletion
+                this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'Product key deleted', life: 3000 });
+                this.loadProductKeys(1, this.rows, this.searchQuery$.getValue()); // Reload keys after deletion
             },
             error: (error) => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete product key', life: 3000 });
@@ -126,7 +133,7 @@ export class ListProductKeyComponent implements OnInit, OnDestroy {
         this.first = event.first;
         this.rows = event.rows;
         const page = event.first / event.rows + 1; // Calculate page number
-        this.loadProductKeys(page, event.rows); // Load keys for the new page
+        this.loadProductKeys(page, event.rows, this.searchQuery$.getValue()); // Load keys for the new page
     }
 
     navigateToCreateProductKey() {

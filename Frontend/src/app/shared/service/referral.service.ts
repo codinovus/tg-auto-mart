@@ -39,13 +39,17 @@ export class ReferralService {
    * @param limit Number of items per page (default: 10)
    * @param searchQuery Optional search term
    */
-  getAllReferrals(page: number = 1, limit: number = 10, searchQuery: string = ''): Observable<GetAllReferralsResponseDto> {
+  getAllReferrals(
+    page: number = 1,
+    limit: number = 10,
+    search?: string
+  ): Observable<GetAllReferralsResponseDto> {
     let params = new HttpParams()
       .set('page', page.toString())
       .set('limit', limit.toString());
 
-    if (searchQuery) {
-      params = params.set('searchQuery', searchQuery);
+    if (search && search.trim() !== '') {
+      params = params.set('search', search.trim());
     }
 
     return this.http.get<GetAllReferralsResponseDto>(this.apiUrl, { params });

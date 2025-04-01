@@ -1,5 +1,4 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Table } from 'primeng/table';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { TableModule } from 'primeng/table';
@@ -7,14 +6,14 @@ import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
-import { OrderService } from '../../../shared/service/order.service'; // Adjust the import path as necessary
-import { OrderResponseDto, GetAllOrdersResponseDto } from '../model/order.dto'; // Adjust the import path as necessary
+import { OrderService } from '../../../shared/service/order.service';
+import { OrderResponseDto, GetAllOrdersResponseDto } from '../model/order.dto';
 import { Router } from '@angular/router';
 import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { Subject, takeUntil } from 'rxjs';
+import { BehaviorSubject, Subject, debounceTime, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-order',
@@ -37,11 +36,12 @@ import { Subject, takeUntil } from 'rxjs';
 })
 export class ListOrderComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
+    private searchQuery$ = new BehaviorSubject<string>('');
     orders!: OrderResponseDto[];
     loading: boolean = true;
-    first: number = 0; // First row offset
-    rows: number = 10; // Number of rows per page
-    totalRecords: number = 0; // Total number of records
+    first: number = 0;
+    rows: number = 10;
+    totalRecords: number = 0;
 
     constructor(
         private orderService: OrderService,
@@ -52,11 +52,14 @@ export class ListOrderComponent implements OnInit, OnDestroy {
 
     ngOnInit() {
         this.loadOrders();
+        this.searchQuery$.pipe(debounceTime(500), takeUntil(this.unsubscribe$)).subscribe(query => {
+            this.loadOrders(1, this.rows, query);
+        });
     }
 
-    loadOrders(page: number = 1, limit: number = this.rows) {
+    loadOrders(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.orderService.getAllOrders(page, limit)
+        this.orderService.getAllOrders(page, limit, search)
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllOrdersResponseDto) => {
                 this.orders = response.data;
@@ -71,12 +74,10 @@ export class ListOrderComponent implements OnInit, OnDestroy {
 
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value;
-        console.log('Search Value:', searchValue);
-        // Implement search functionality if needed
+        this.searchQuery$.next(searchValue);
     }
 
     onEdit(orderId: string | number) {
-        console.log('Edit button clicked for order ID:', orderId);
         this.router.navigate(['pages/order/edit', orderId]);
     }
 
@@ -86,15 +87,8 @@ export class ListOrderComponent implements OnInit, OnDestroy {
             message: 'Do you want to delete this order?',
             header: 'Danger Zone',
             icon: 'pi pi-info-circle',
-            rejectButtonProps: {
-                label: 'Cancel',
-                severity: 'secondary',
-                outlined: true
-            },
-            acceptButtonProps: {
-                label: 'Delete',
-                severity: 'danger'
-            },
+            rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
+            acceptButtonProps: { label: 'Delete', severity: 'danger' },
             accept: () => {
                 this.onDelete(orderId);
             },
@@ -108,7 +102,7 @@ export class ListOrderComponent implements OnInit, OnDestroy {
         this.orderService.deleteOrderById(String(orderId)).subscribe({
             next: () => {
                 this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'Order deleted', life: 3000 });
-                this.loadOrders(); // Reload orders after deletion
+                this.loadOrders(1, this.rows, this.searchQuery$.getValue());
             },
             error: (error) => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete order', life: 3000 });
@@ -119,14 +113,13 @@ export class ListOrderComponent implements OnInit, OnDestroy {
 
     onView(orderId: string | number) {
         console.log('View button clicked for order ID:', orderId);
-        // Implement view functionality if needed
     }
 
     onPageChange(event: any) {
         this.first = event.first;
         this.rows = event.rows;
-        const page = event.first / event.rows + 1; // Calculate page number
-        this.loadOrders(page, event.rows); // Load orders for the new page
+        const page = event.first / event.rows + 1;
+        this.loadOrders(page, event.rows, this.searchQuery$.getValue());
     }
 
     navigateToCreateOrder() {

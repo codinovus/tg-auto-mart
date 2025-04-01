@@ -39,12 +39,20 @@ export class DisputeService {
    * @param page Page number (default: 1)
    * @param limit Number of items per page (default: 10)
    */
-  getAllDisputes(page: number = 1, limit: number = 10): Observable<GetAllDisputesResponseDto> {
-    let params = new HttpParams()
-      .set('page', page.toString())
-      .set('limit', limit.toString());
+  getAllDisputes(
+    page: number = 1,
+    limit: number = 10,
+    search?: string
+  ): Observable<GetAllDisputesResponseDto> {
+      let params = new HttpParams()
+        .set('page', page.toString())
+        .set('limit', limit.toString());
 
-    return this.http.get<GetAllDisputesResponseDto>(this.apiUrl, { params });
+      if (search && search.trim() !== '') {
+        params = params.set('search', search.trim());
+      }
+
+      return this.http.get<GetAllDisputesResponseDto>(this.apiUrl, { params });
   }
 
   /**

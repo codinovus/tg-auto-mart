@@ -14,7 +14,7 @@ import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { Subject, takeUntil } from 'rxjs';
+import { BehaviorSubject, debounceTime, Subject, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-wallet',
@@ -37,6 +37,7 @@ import { Subject, takeUntil } from 'rxjs';
 })
 export class ListWalletComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
+    private searchQuery$ = new BehaviorSubject<string>('');
     wallets!: WalletResponseDto[];
     loading: boolean = true;
     first: number = 0; // First row offset
@@ -52,11 +53,20 @@ export class ListWalletComponent implements OnInit, OnDestroy {
 
     ngOnInit() {
         this.loadWallets();
+        this.setupSearchListener();
     }
 
-    loadWallets(page: number = 1, limit: number = this.rows) {
+    setupSearchListener() {
+        this.searchQuery$
+            .pipe(debounceTime(500), takeUntil(this.unsubscribe$))
+            .subscribe(searchValue => {
+                this.loadWallets(1, this.rows, searchValue); // Load wallets with the search value
+            });
+    }
+
+    loadWallets(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.walletService.getAllWallets(page, limit)
+        this.walletService.getAllWallets(page, limit, search) // Pass the search parameter
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllWalletsResponseDto) => {
                 this.wallets = response.data;
@@ -71,12 +81,10 @@ export class ListWalletComponent implements OnInit, OnDestroy {
 
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value;
-        console.log('Search Value:', searchValue);
-        // Implement search functionality if needed
+        this.searchQuery$.next(searchValue);
     }
 
     onEdit(walletId: string | number) {
-        console.log('Edit button clicked for wallet ID:', walletId);
         this.router.navigate(['pages/wallet/edit', walletId]);
     }
 

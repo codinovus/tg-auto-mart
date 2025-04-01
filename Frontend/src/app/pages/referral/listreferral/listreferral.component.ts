@@ -1,5 +1,4 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Table } from 'primeng/table';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { TableModule } from 'primeng/table';
@@ -14,29 +13,19 @@ import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, BehaviorSubject, debounceTime, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-referral',
     templateUrl: './listreferral.component.html',
     styleUrls: ['./listreferral.component.scss'],
     standalone: true,
-    imports: [
-        TableModule,
-        HttpClientModule,
-        CommonModule,
-        InputTextModule,
-        ButtonModule,
-        IconFieldModule,
-        InputIconModule,
-        PaginatorModule,
-        ConfirmDialogModule,
-        ToastModule
-    ],
+    imports: [TableModule, HttpClientModule, CommonModule, InputTextModule, ButtonModule, IconFieldModule, InputIconModule, PaginatorModule, ConfirmDialogModule, ToastModule],
     providers: [ReferralService, ConfirmationService, MessageService]
 })
 export class ListReferralComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
+    private searchQuery$ = new BehaviorSubject<string>(''); // BehaviorSubject for search input
     referrals!: ReferralResponseDto[];
     loading: boolean = true;
     first: number = 0; // First row offset
@@ -52,31 +41,40 @@ export class ListReferralComponent implements OnInit, OnDestroy {
 
     ngOnInit() {
         this.loadReferrals();
+        this.setupSearchListener(); // Set up the search listener
     }
 
-    loadReferrals(page: number = 1, limit: number = this.rows) {
+    setupSearchListener() {
+        this.searchQuery$.pipe(debounceTime(500), takeUntil(this.unsubscribe$)).subscribe((searchValue) => {
+            this.loadReferrals(1, this.rows, searchValue); // Load referrals with the search value
+        });
+    }
+
+    loadReferrals(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.referralService.getAllReferrals(page, limit)
+        this.referralService
+            .getAllReferrals(page, limit, search) // Pass the search parameter
             .pipe(takeUntil(this.unsubscribe$))
-            .subscribe((response: GetAllReferralsResponseDto) => {
-                this.referrals = response.data;
-                this.totalRecords = response.pagination?.totalItems || 0;
-                this.loading = false;
-            }, error => {
-                this.loading = false;
-                this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to load referrals', life: 3000 });
-                console.error('Error loading referrals:', error);
-            });
+            .subscribe(
+                (response: GetAllReferralsResponseDto) => {
+                    this.referrals = response.data;
+                    this.totalRecords = response.pagination?.totalItems || 0;
+                    this.loading = false;
+                },
+                (error) => {
+                    this.loading = false;
+                    this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to load referrals', life: 3000 });
+                    console.error('Error loading referrals:', error);
+                }
+            );
     }
 
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value;
-        console.log('Search Value:', searchValue);
-        // Implement search functionality if needed
+        this.searchQuery$.next(searchValue); // Update the search query
     }
 
     onEdit(referralId: string | number) {
-        console.log('Edit button clicked for referral ID:', referralId);
         this.router.navigate(['pages/referral/edit', referralId]);
     }
 
@@ -108,7 +106,7 @@ export class ListReferralComponent implements OnInit, OnDestroy {
         this.referralService.deleteReferralById(String(referralId)).subscribe({
             next: () => {
                 this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'Referral deleted', life: 3000 });
-                this.loadReferrals(); // Reload referrals after deletion
+                this.loadReferrals(1, this.rows, this.searchQuery$.getValue()); // Reload referrals after deletion
             },
             error: (error) => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete referral', life: 3000 });
@@ -126,7 +124,7 @@ export class ListReferralComponent implements OnInit, OnDestroy {
         this.first = event.first;
         this.rows = event.rows;
         const page = event.first / event.rows + 1; // Calculate page number
-        this.loadReferrals(page, event.rows); // Load referrals for the new page
+        this.loadReferrals(page, event.rows, this.searchQuery$.getValue()); // Load referrals for the new page
     }
 
     navigateToCreateReferral() {

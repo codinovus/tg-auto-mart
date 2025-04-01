@@ -16,7 +16,7 @@ import { BadgeModule } from 'primeng/badge';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { Subject, takeUntil } from 'rxjs';
+import { BehaviorSubject, debounceTime, Subject, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-user',
@@ -41,6 +41,7 @@ import { Subject, takeUntil } from 'rxjs';
 })
 export class ListUserComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
+    private searchQuery$ = new BehaviorSubject<string>('');
     users!: UserResponseDto[];
     loading: boolean = true;
     roles = [
@@ -61,22 +62,35 @@ export class ListUserComponent implements OnInit, OnDestroy {
 
     ngOnInit() {
         this.loadUsers();
+        this.setupSearchListener();
     }
 
-    loadUsers(page: number = 1, limit: number = this.rows) {
+    setupSearchListener() {
+        this.searchQuery$
+            .pipe(debounceTime(500), takeUntil(this.unsubscribe$))
+            .subscribe(searchValue => {
+                this.loadUsers(1, this.rows, searchValue);
+            });
+    }
+
+    loadUsers(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.userService.getAllUsers(page, limit)
+        this.userService.getAllUsers(page, limit, search) // Pass the search parameter
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllUsersResponseDto) => {
                 this.users = response.data;
                 this.totalRecords = response.pagination?.totalItems || 0;
                 this.loading = false;
+            }, error => {
+                this.loading = false;
+                this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to load users', life: 3000 });
+                console.error('Error loading users:', error);
             });
     }
 
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value;
-        console.log('Search Value:', searchValue);
+        this.searchQuery$.next(searchValue); // Update the search query
     }
 
     getSeverity(role: string) {
@@ -93,7 +107,6 @@ export class ListUserComponent implements OnInit, OnDestroy {
     }
 
     onEdit(userId: string | number) {
-        console.log('Edit button clicked for user ID:', userId);
         this.router.navigate(['pages/user/edit', userId]);
     }
 

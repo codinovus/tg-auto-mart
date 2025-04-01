@@ -28,10 +28,18 @@ export class UserService {
    * @param page Page number (default: 1)
    * @param limit Number of items per page (default: 10)
    */
-  getAllUsers(page: number = 1, limit: number = 10): Observable<GetAllUsersResponseDto> {
+  getAllUsers(
+    page: number = 1,
+    limit: number = 10,
+    search?: string
+  ): Observable<GetAllUsersResponseDto> {
     let params = new HttpParams()
       .set('page', page.toString())
       .set('limit', limit.toString());
+
+    if (search && search.trim() !== '') {
+      params = params.set('search', search.trim());
+    }
 
     return this.http.get<GetAllUsersResponseDto>(this.apiUrl, { params });
   }

@@ -3,10 +3,12 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/shared/prisma/prisma.service';
 import { CreateWalletDto, WalletResponseDto, UpdateWalletDto, GetAllWalletsResponseDto } from './model/wallet.model';
 import { UserService } from '../user/user.service';
+import { TransactionType, PaymentStatus } from '@prisma/client';
 
 @Injectable()
 export class WalletService {
@@ -62,31 +64,103 @@ export class WalletService {
   }
 
   // Get Methods
-  async getAllWallets(page: number, limit: number): Promise<GetAllWalletsResponseDto> {
-    this.validatePagination(page, limit);
-
-    const totalItems = await this.prisma.wallet.count();
-
-    const wallets = await this.prisma.wallet.findMany({
-      skip: (page - 1) * limit,
-      take: limit,
-      include: { user: true },
-    });
-
-    const walletResponseDtos: WalletResponseDto[] = wallets.map(wallet => this.mapWalletToResponse(wallet));
-
-    const totalPages = Math.ceil(totalItems / limit);
-    return new GetAllWalletsResponseDto(
-      true,
-      'Wallets fetched successfully',
-      walletResponseDtos,
-      {
-        totalItems,
-        totalPages,
-        currentPage: page,
-        perPage: limit,
-      },
-    );
+  async getAllWallets(
+    page: number, 
+    limit: number,
+    search?: string
+  ): Promise<GetAllWalletsResponseDto> {
+    try {
+      this.validatePagination(page, limit);
+  
+      let whereClause = {};
+  
+      if (search && search.trim() !== '') {
+        const searchTerm = search.trim();
+        const isNumber = !isNaN(parseFloat(searchTerm)) && isFinite(Number(searchTerm));
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(searchTerm);
+  
+        whereClause = {
+          OR: [
+            // Basic wallet fields
+            ...(isUuid ? [{ id: searchTerm }] : []),
+            ...(isNumber ? [{ balance: parseFloat(searchTerm) }] : []),
+  
+            // Related user fields
+            {
+              user: {
+                OR: [
+                  { username: { contains: searchTerm, mode: 'insensitive' } },
+                  { telegramId: { contains: searchTerm, mode: 'insensitive' } },
+                  ...(isUuid ? [{ id: searchTerm }] : [])
+                ]
+              }
+            },
+  
+            // Related transactions search
+            {
+              transactions: {
+                some: {
+                  OR: [
+                    ...(isNumber ? [{ amount: parseFloat(searchTerm) }] : []),
+                    { description: { contains: searchTerm, mode: 'insensitive' } },
+                    ...(Object.values(TransactionType).includes(searchTerm.toUpperCase() as TransactionType) ? 
+                      [{ type: searchTerm.toUpperCase() as TransactionType }] : 
+                      []
+                    ),
+                    ...(Object.values(PaymentStatus).includes(searchTerm.toUpperCase() as PaymentStatus) ? 
+                      [{ status: searchTerm.toUpperCase() as PaymentStatus }] : 
+                      []
+                    )
+                  ]
+                }
+              }
+            }
+          ]
+        };
+      }
+  
+      const totalItems = await this.prisma.wallet.count({
+        where: whereClause
+      });
+  
+      const wallets = await this.prisma.wallet.findMany({
+        where: whereClause,
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          user: true,
+          transactions: {
+            take: 5, // Limit the number of recent transactions
+            orderBy: {
+              createdAt: 'desc'
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+  
+      const walletResponseDtos: WalletResponseDto[] = wallets.map(wallet => 
+        this.mapWalletToResponse(wallet)
+      );
+  
+      const totalPages = Math.ceil(totalItems / limit);
+      return new GetAllWalletsResponseDto(
+        true,
+        'Wallets fetched successfully',
+        walletResponseDtos,
+        {
+          totalItems,
+          totalPages,
+          currentPage: page,
+          perPage: limit,
+        }
+      );
+    } catch (error) {
+      console.error('Error fetching wallets:', error);
+      throw new InternalServerErrorException('An error occurred while fetching wallets');
+    }
   }
 
   async getWalletById(walletId: string): Promise<WalletResponseDto> {

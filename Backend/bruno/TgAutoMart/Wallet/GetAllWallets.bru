@@ -1,0 +1,17 @@
+meta {
+  name: GetAllWallets
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://localhost:3000/wallet?page=1&limit=10&search=50.25
+  body: none
+  auth: none
+}
+
+params:query {
+  page: 1
+  limit: 10
+  search: 50.25
+}

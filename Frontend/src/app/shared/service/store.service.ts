@@ -31,10 +31,18 @@ export class StoreService {
    * @param page Page number (default: 1)
    * @param limit Number of items per page (default: 10)
    */
-  getAllStores(page: number = 1, limit: number = 10): Observable<GetAllStoresResponseDto> {
+  getAllStores(
+    page: number = 1,
+    limit: number = 10,
+    search?: string
+  ): Observable<GetAllStoresResponseDto> {
     let params = new HttpParams()
       .set('page', page.toString())
       .set('limit', limit.toString());
+
+    if (search && search.trim() !== '') {
+      params = params.set('search', search.trim());
+    }
 
     return this.http.get<GetAllStoresResponseDto>(this.apiUrl, { params });
   }

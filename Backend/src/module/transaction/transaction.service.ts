@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/shared/prisma/prisma.service';
 import {
@@ -11,7 +12,8 @@ import {
   GetAllTransactionsResponseDto,
   GetTransactionByIdResponseDto,
 } from './model/transaction.dto';
-import { TransactionType, PaymentStatus } from '@prisma/client';
+import { SearchableField, SearchBuilder } from 'src/shared/base/search-builder.util';
+import { PaymentStatus, TransactionType } from '@prisma/client';
 
 @Injectable()
 export class TransactionService {
@@ -86,72 +88,125 @@ export class TransactionService {
   }
 
   // Get Methods
-async getAllTransactions(
-  page: number,
-  limit: number,
-  search?: string, // New parameter for search
-  transactionType?: TransactionType, // New parameter for transaction type
-  paymentStatus?: PaymentStatus, // New parameter for payment status
-): Promise<GetAllTransactionsResponseDto> {
-  this.validatePagination(page, limit);
-
-  let whereClause = {};
-
-  // Construct the where clause based on search criteria
-  if (search || transactionType || paymentStatus) {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search || '');
-
-    whereClause = {
-      OR: [
-        ...(isUuid ? [{ id: search }] : []),
-        {
-          user: {
-            username: {
-              contains: search || '', // Search by username
-              mode: 'insensitive',
-            },
-          },
+  async getAllTransactions(
+    page: number,
+    limit: number,
+    search?: string,
+  ): Promise<GetAllTransactionsResponseDto> {
+    try {
+      this.validatePagination(page, limit);
+  
+      const searchableFields: SearchableField[] = [
+        { name: 'id', type: 'string', exact: true },
+        { name: 'amount', type: 'number' },
+        { name: 'status', type: 'enum', enumType: 'PaymentStatus' },
+        { name: 'type', type: 'enum', enumType: 'TransactionType' },
+        { 
+          name: 'user', 
+          nested: true, 
+          relationField: 'user', 
+          searchableFields: [
+            { name: 'username', type: 'string' },
+            { name: 'telegramId', type: 'string' },
+            // Remove email as it's not in your schema
+          ] 
         },
-        ...(paymentStatus ? [{ status: paymentStatus }] : []),
-        ...(transactionType ? [{ type: transactionType }] : []),
-      ],
-    };
+        { 
+          name: 'wallet', 
+          nested: true, 
+          relationField: 'wallet', 
+          searchableFields: [
+            { name: 'balance', type: 'number' }, // Update to match your schema
+          ] 
+        },
+      ];
+      
+      let whereClause = {};
+      
+      if (search && search.trim() !== '') {
+        try {
+          whereClause = SearchBuilder.buildWhereClause(search, searchableFields);
+        } catch (searchError) {
+          console.error("Error in search builder:", searchError);
+          
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search);
+          const isNumber = !isNaN(parseFloat(search)) && isFinite(Number(search));
+          const searchLower = search.toLowerCase();
+          
+          // Find matching enum values
+          const matchingTransactionTypes = Object.values(TransactionType)
+            .filter(value => typeof value === 'string' && value.toLowerCase().includes(searchLower));
+          
+          const matchingPaymentStatuses = Object.values(PaymentStatus)
+            .filter(value => typeof value === 'string' && value.toLowerCase().includes(searchLower));
+          
+          whereClause = {
+            OR: [
+              ...(isUuid ? [{ id: search }] : []),
+              ...(isNumber ? [{ amount: parseFloat(search) }] : []),
+              ...(matchingTransactionTypes.length > 0 ? [{ type: { in: matchingTransactionTypes } }] : []),
+              ...(matchingPaymentStatuses.length > 0 ? [{ status: { in: matchingPaymentStatuses } }] : []),
+              {
+                user: {
+                  OR: [
+                    { username: { contains: search, mode: 'insensitive' } },
+                    { telegramId: { contains: search, mode: 'insensitive' } },
+                  ]
+                }
+              },
+              {
+                wallet: {
+                  balance: isNumber ? parseFloat(search) : undefined
+                }
+              }
+            ].filter(condition => 
+              Object.keys(condition).length > 0 && 
+              (!condition.wallet || condition.wallet.balance !== undefined)
+            )
+          };
+        }
+      }
+  
+      const totalItems = await this.prisma.transaction.count({
+        where: whereClause,
+      });
+  
+      const transactions = await this.prisma.transaction.findMany({
+        where: whereClause,
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          wallet: true,
+          user: true,
+          order: true,
+          depositRequest: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        }, });
+  
+      const transactionResponseDtos: TransactionResponseDto[] = transactions.map(transaction =>
+        this.mapToTransactionResponseDto(transaction),
+      );
+  
+      const totalPages = Math.ceil(totalItems / limit);
+      return new GetAllTransactionsResponseDto(
+        true,
+        'Transactions fetched successfully',
+        transactionResponseDtos,
+        {
+          totalItems,
+          totalPages,
+          currentPage: page,
+          perPage: limit,
+        },
+      );
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      throw new InternalServerErrorException('An error occurred while fetching transactions');
+    }
   }
-
-  const totalItems = await this.prisma.transaction.count({
-    where: whereClause,
-  });
-
-  const transactions = await this.prisma.transaction.findMany({
-    where: whereClause,
-    skip: (page - 1) * limit,
-    take: limit,
-    include: {
-      wallet: true,
-      user: true,
-      order: true,
-      depositRequest: true,
-    },
-  });
-
-  const transactionResponseDtos: TransactionResponseDto[] = transactions.map(transaction =>
-    this.mapToTransactionResponseDto(transaction),
-  );
-
-  const totalPages = Math.ceil(totalItems / limit);
-  return new GetAllTransactionsResponseDto(
-    true,
-    'Transactions fetched successfully',
-    transactionResponseDtos,
-    {
-      totalItems,
-      totalPages,
-      currentPage: page,
-      perPage: limit,
-    },
-  );
-}
-
+  
   async getTransactionById(transactionId: string): Promise<GetTransactionByIdResponseDto> {
     if (!transactionId) {
       throw new BadRequestException('Transaction ID is required');

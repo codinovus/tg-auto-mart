@@ -39,10 +39,18 @@ export class OrderService {
    * @param page Page number (default: 1)
    * @param limit Number of items per page (default: 10)
    */
-  getAllOrders(page: number = 1, limit: number = 10): Observable<GetAllOrdersResponseDto> {
+  getAllOrders(
+    page: number = 1,
+    limit: number = 10,
+    search?: string
+  ): Observable<GetAllOrdersResponseDto> {
     let params = new HttpParams()
       .set('page', page.toString())
       .set('limit', limit.toString());
+
+    if (search && search.trim() !== '') {
+      params = params.set('search', search.trim());
+    }
 
     return this.http.get<GetAllOrdersResponseDto>(this.apiUrl, { params });
   }

@@ -1,5 +1,4 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Table } from 'primeng/table';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { TableModule } from 'primeng/table';
@@ -14,7 +13,7 @@ import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, BehaviorSubject, debounceTime, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-store',
@@ -37,6 +36,7 @@ import { Subject, takeUntil } from 'rxjs';
 })
 export class ListStoreComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
+    private searchQuery$ = new BehaviorSubject<string>(''); // BehaviorSubject for search input
     stores!: StoreResponseDto[];
     loading: boolean = true;
     first: number = 0; // First row offset
@@ -52,11 +52,20 @@ export class ListStoreComponent implements OnInit, OnDestroy {
 
     ngOnInit() {
         this.loadStores();
+        this.setupSearchListener(); // Set up the search listener
     }
 
-    loadStores(page: number = 1, limit: number = this.rows) {
+    setupSearchListener() {
+        this.searchQuery$
+            .pipe(debounceTime(500), takeUntil(this.unsubscribe$))
+            .subscribe(searchValue => {
+                this.loadStores(1, this.rows, searchValue); // Load stores with the search value
+            });
+    }
+
+    loadStores(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.storeService.getAllStores(page, limit)
+        this.storeService.getAllStores(page, limit, search) // Pass the search parameter
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllStoresResponseDto) => {
                 this.stores = response.data;
@@ -71,12 +80,10 @@ export class ListStoreComponent implements OnInit, OnDestroy {
 
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value;
-        console.log('Search Value:', searchValue);
-        // Implement search functionality if needed
+        this.searchQuery$.next(searchValue); // Update the search query
     }
 
     onEdit(storeId: string | number) {
-        console.log('Edit button clicked for store ID:', storeId);
         this.router.navigate(['pages/store/edit', storeId]);
     }
 
@@ -107,8 +114,8 @@ export class ListStoreComponent implements OnInit, OnDestroy {
     onDelete(storeId: string | number) {
         this.storeService.deleteStore(String(storeId)).subscribe({
             next: () => {
-                this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'Store deleted', life: 3000 });
-                this.loadStores(); // Reload stores after deletion
+                this.messageService .add({ severity: 'info', summary: 'Confirmed', detail: 'Store deleted', life: 3000 });
+                this.loadStores(1, this.rows, this.searchQuery$.getValue()); // Reload stores after deletion
             },
             error: (error) => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete store', life: 3000 });
@@ -126,7 +133,7 @@ export class ListStoreComponent implements OnInit, OnDestroy {
         this.first = event.first;
         this.rows = event.rows;
         const page = event.first / event.rows + 1; // Calculate page number
-        this.loadStores(page, event.rows); // Load stores for the new page
+        this.loadStores(page, event.rows, this.searchQuery$.getValue()); // Load stores for the new page
     }
 
     navigateToCreateStore() {

@@ -14,7 +14,7 @@ import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { Subject, takeUntil } from 'rxjs';
+import { BehaviorSubject, debounceTime, Subject, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-transaction',
@@ -37,6 +37,7 @@ import { Subject, takeUntil } from 'rxjs';
 })
 export class ListTransactionComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
+    private searchQuery$ = new BehaviorSubject<string>('');
     transactions!: TransactionResponseDto[];
     loading: boolean = true;
     first: number = 0; // First row offset
@@ -52,11 +53,20 @@ export class ListTransactionComponent implements OnInit, OnDestroy {
 
     ngOnInit() {
         this.loadTransactions();
+        this.setupSearchListener();
     }
 
-    loadTransactions(page: number = 1, limit: number = this.rows) {
+    setupSearchListener() {
+        this.searchQuery$
+            .pipe(debounceTime(500), takeUntil(this.unsubscribe$))
+            .subscribe(searchValue => {
+                this.loadTransactions(1, this.rows, searchValue); // Load transactions with the search value
+            });
+    }
+
+    loadTransactions(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.transactionService.getAllTransactions(page, limit)
+        this.transactionService.getAllTransactions(page, limit, search) // Pass the search parameter
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllTransactionsResponseDto) => {
                 this.transactions = response.data;
@@ -71,12 +81,10 @@ export class ListTransactionComponent implements OnInit, OnDestroy {
 
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value;
-        console.log('Search Value:', searchValue);
-        // Implement search functionality if needed
+        this.searchQuery$.next(searchValue); // Update the search query
     }
 
     onEdit(transactionId: string | number) {
-        console.log('Edit button clicked for transaction ID:', transactionId);
         this.router.navigate(['pages/transaction/edit', transactionId]);
     }
 
@@ -125,8 +133,8 @@ export class ListTransactionComponent implements OnInit, OnDestroy {
     onPageChange(event: any) {
         this.first = event.first;
         this.rows = event.rows;
-        const page = event.first / event.rows + 1; // Calculate page number
-        this.loadTransactions(page, event.rows); // Load transactions for the new page
+        const page = event.first / event.rows + 1;
+        this.loadTransactions(page, event.rows);
     }
 
     navigateToCreateTransaction() {

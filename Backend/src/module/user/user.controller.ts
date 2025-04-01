@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query, Param, Put, Delete, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Param, Put, Delete, HttpCode, HttpStatus, DefaultValuePipe } from '@nestjs/common';
 import { UserService } from './user.service';
 
 import {
@@ -19,17 +19,19 @@ export class UserController {
 
   @Get()
   async getAllUsers(
-    @Query('page') page: string = '1',
-    @Query('limit') limit: string = '10',
+    @Query('page', new DefaultValuePipe('1')) page: string,
+    @Query('limit', new DefaultValuePipe('10')) limit: string,
+    @Query('search') search?: string,
   ): Promise<GetAllUsersResponseDto> {
     const pageNumber = parseInt(page, 10);
     const limitNumber = parseInt(limit, 10);
-
+  
     const { users, pagination } = await this.userService.getUsers(
       pageNumber,
       limitNumber,
+      search
     );
-
+  
     return new GetAllUsersResponseDto(
       true,
       'Users retrieved successfully',

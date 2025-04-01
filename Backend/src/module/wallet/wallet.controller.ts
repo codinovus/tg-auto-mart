@@ -7,6 +7,7 @@ import {
     Query,
     Put,
     Delete,
+    DefaultValuePipe,
   } from '@nestjs/common';
   import { WalletService } from './wallet.service';
   import {
@@ -43,10 +44,11 @@ import {
   
     @Get()
     async getAllWallets(
-      @Query('page') page: number = 1,
-      @Query('limit') limit: number = 10,
+      @Query('page', new DefaultValuePipe('1')) page: string,
+      @Query('limit', new DefaultValuePipe('10')) limit: string,
+      @Query('search') search?: string,
     ) {
-      return this.walletService.getAllWallets(Number(page), Number(limit));
+      return this.walletService.getAllWallets(Number(page), Number(limit), search);
     }
   
     @Get('user/:userId')

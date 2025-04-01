@@ -1,5 +1,4 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Table } from 'primeng/table';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { TableModule } from 'primeng/table';
@@ -14,7 +13,7 @@ import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-deposit-request',
@@ -37,11 +36,13 @@ import { Subject, takeUntil } from 'rxjs';
 })
 export class ListDepositRequestComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
+    private searchSubject = new Subject<string>();
     depositRequests!: DepositRequestResponseDto[];
     loading: boolean = true;
-    first: number = 0; // First row offset
-    rows: number = 10; // Number of rows per page
-    totalRecords: number = 0; // Total number of records
+    first: number = 0;
+    rows: number = 10;
+    totalRecords: number = 0;
+    lastSearchTerm: string = '';
 
     constructor(
         private depositRequestService: DepositRequestService,
@@ -52,11 +53,21 @@ export class ListDepositRequestComponent implements OnInit, OnDestroy {
 
     ngOnInit() {
         this.loadDepositRequests();
+        this.searchSubject.pipe(
+            debounceTime(500),
+            distinctUntilChanged(),
+            takeUntil(this.unsubscribe$)
+        ).subscribe(searchTerm => {
+            if (searchTerm !== this.lastSearchTerm) {
+                this.lastSearchTerm = searchTerm;
+                this.loadDepositRequests(1, this.rows, searchTerm);
+            }
+        });
     }
 
-    loadDepositRequests(page: number = 1, limit: number = this.rows) {
+    loadDepositRequests(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.depositRequestService.getAllDepositRequests(page, limit)
+        this.depositRequestService.getAllDepositRequests(page, limit, search)
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllDepositRequestsResponseDto) => {
                 this.depositRequests = response.data;
@@ -71,12 +82,10 @@ export class ListDepositRequestComponent implements OnInit, OnDestroy {
 
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value;
-        console.log('Search Value:', searchValue);
-        // Implement search functionality if needed
+        this.searchSubject.next(searchValue);
     }
 
     onEdit(requestId: string | number) {
-        console.log('Edit button clicked for request ID:', requestId);
         this.router.navigate(['pages/deposit/edit', requestId]);
     }
 
@@ -108,7 +117,7 @@ export class ListDepositRequestComponent implements OnInit, OnDestroy {
         this.depositRequestService.deleteDepositRequestById(String(requestId)).subscribe({
             next: () => {
                 this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'Deposit request deleted', life: 3000 });
-                this.loadDepositRequests(); // Reload deposit requests after deletion
+                this.loadDepositRequests();
             },
             error: (error) => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete deposit request', life: 3000 });
@@ -119,14 +128,13 @@ export class ListDepositRequestComponent implements OnInit, OnDestroy {
 
     onView(requestId: string | number) {
         console.log('View button clicked for request ID:', requestId);
-        // Implement view functionality if needed
     }
 
     onPageChange(event: any) {
         this.first = event.first;
         this.rows = event.rows;
-        const page = event.first / event.rows + 1; // Calculate page number
-        this.loadDepositRequests(page, event.rows); // Load deposit requests for the new page
+        const page = event.first / event.rows + 1;
+        this.loadDepositRequests(page, event.rows, this.lastSearchTerm);
     }
 
     navigateToCreateDepositRequest() {
