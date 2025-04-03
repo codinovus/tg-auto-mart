@@ -6,6 +6,17 @@ import { MessageService } from 'primeng/api';
   selector: 'app-toast',
   template: `<p-toast position="top-right" [autoZIndex]="true" [baseZIndex]="10000"></p-toast>`,
   standalone: true,
-  imports: [ToastModule]
+  imports: [ToastModule],
+  providers: [MessageService] // Provide MessageService
 })
-export class ToastComponent {}
+export class ToastComponent {
+  constructor(private messageService: MessageService) {}
+
+  showSuccess(message: string) {
+    this.messageService.add({ severity: 'success', summary: 'Success', detail: message });
+  }
+
+  showError(message: string) {
+    this.messageService.add({ severity: 'error', summary: 'Error', detail: message });
+  }
+}
