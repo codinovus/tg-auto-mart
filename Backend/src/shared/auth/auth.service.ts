@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -31,7 +32,6 @@ export class AuthService {
     return { id: user.id, username: user.username, role: user.role };
   }
 
-
   async login(user: any) {
     const payload = { username: user.username, sub: user.id, role: user.role };
     const accessToken = this.jwtService.sign(payload);
@@ -39,16 +39,12 @@ export class AuthService {
       expiresIn: '7d',
     });
 
-    // Update user with refresh token
     await this.prisma.user.update({
       where: { id: user.id },
       data: { refreshToken },
     });
 
-    // Get complete user profile
     const userProfile = await this.userService.getProfile(user.id);
-
-    // Get token expiration times
     const decodedAccess = this.jwtService.decode(accessToken);
     const decodedRefresh = this.jwtService.decode(refreshToken);
 
@@ -70,12 +66,10 @@ export class AuthService {
 
   async refreshToken(refreshToken: string) {
     try {
-      // Verify the token
       const payload = this.jwtService.verify(refreshToken, {
         secret: this.configService.get<string>('JWT_SECRET') || 'yourSecretKey',
       });
       
-      // Find the user by ID
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
       });
@@ -90,7 +84,6 @@ export class AuthService {
         expiresIn: '7d',
       });
 
-      // Update user with new refresh token
       await this.prisma.user.update({
         where: { id: user.id },
         data: { refreshToken: newRefreshToken },

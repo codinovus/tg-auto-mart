@@ -11,6 +11,7 @@ import {
   Post,
   Put,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { PromoCodeService } from './promo-code.service';
 import {
@@ -20,12 +21,18 @@ import {
   UpdatePromoCodeDto,
   GetPromoCodeByIdResponseDto,
 } from './model/promo-code.dto';
+import { JwtAuthGuard } from 'src/shared/auth/jwt-auth.guard';
+import { RolesGuard } from 'src/shared/auth/roles.guard';
+import { Roles } from 'src/shared/auth/roles.decorator';
 
 @Controller('promo-codes')
+@UseGuards(JwtAuthGuard) // Protect all routes with JWT authentication
 export class PromoCodeController {
   constructor(private readonly promoCodeService: PromoCodeService) {}
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles('STORE_ADMIN', 'DEVELOPER') // Only allow STORE_ADMIN and DEVELOPER to create promo codes
   async createPromoCode(
     @Body() createPromoCodeDto: CreatePromoCodeDto,
   ): Promise<{
@@ -59,6 +66,8 @@ export class PromoCodeController {
   }
 
   @Put(':id')
+  @UseGuards(RolesGuard)
+  @Roles('STORE_ADMIN', 'DEVELOPER') // Only allow STORE_ADMIN and DEVELOPER to update promo codes
   async updatePromoCode(
     @Param('id') promoCodeId: string,
     @Body() updatePromoCodeDto: UpdatePromoCodeDto,
@@ -71,6 +80,8 @@ export class PromoCodeController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(RolesGuard)
+  @Roles('STORE_ADMIN', 'DEVELOPER') // Only allow STORE_ADMIN and DEVELOPER to delete promo codes
   async deletePromoCode(
     @Param('id') promoCodeId: string,
   ): Promise<{ success: boolean; message: string }> {

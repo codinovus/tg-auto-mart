@@ -1,0 +1,18 @@
+export const JWT_CONSTANTS = {
+    ACCESS_TOKEN_EXPIRATION: '30m',
+    REFRESH_TOKEN_EXPIRATION: '7d',
+    TOKEN_TYPE: 'Bearer',
+  };
+  
+  export const PASSWORD_CONSTRAINTS = {
+    MIN_LENGTH: 6,
+    REQUIRE_UPPERCASE: false,
+    REQUIRE_LOWERCASE: false,
+    REQUIRE_NUMBERS: false,
+    REQUIRE_SYMBOLS: false,
+  };
+  
+  export const SECURITY_SETTINGS = {
+    MAX_LOGIN_ATTEMPTS: 5,
+    LOCKOUT_DURATION_MINUTES: 15,
+  };

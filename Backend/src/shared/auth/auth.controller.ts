@@ -33,8 +33,6 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('me')
   async getProfile(@Request() req) {
-    // Using the user service to get the complete profile
-    // This resolves the eslint warning about not having awaits
     return await this.userService.getProfile(req.user.id);
   }
 
@@ -42,5 +40,5 @@ export class AuthController {
   @Post('logout')
   async logout(@Request() req) {
     return await this.authService.logout(req.user.id);
-  }
+  } 
 }

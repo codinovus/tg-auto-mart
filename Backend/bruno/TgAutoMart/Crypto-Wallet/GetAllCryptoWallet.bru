@@ -5,13 +5,17 @@ meta {
 }
 
 get {
-  url: http://localhost:3000/crypto-wallets?page=1&limit=10&search=eth
+  url: http://localhost:3000/crypto-wallets?page=1&limit=10&search=
   body: none
-  auth: none
+  auth: bearer
 }
 
 params:query {
   page: 1
   limit: 10
-  search: eth
+  search: 
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFkbWluMSIsInN1YiI6IjQ5MjI1ZWIwLTU4MWMtNDNjNS1iODI1LWMxYjQ2ODFkOTg3MyIsInJvbGUiOiJTVE9SRV9BRE1JTiIsImlhdCI6MTc0MzU2OTA5MCwiZXhwIjoxNzQzNTY5OTkwfQ.lbzXIolKZN013e4sUPIxFROsrvQVLCfNu3vyFYA9kbs
 }

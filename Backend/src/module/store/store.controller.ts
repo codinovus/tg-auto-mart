@@ -11,6 +11,7 @@ import {
   Post,
   Put,
   Query,
+  UseGuards
 } from '@nestjs/common';
 import { StoreService } from './store.service';
 import {
@@ -19,12 +20,18 @@ import {
   StoreResponseDto,
   UpdateStoreDto,
 } from './model/store.dto';
+import { JwtAuthGuard } from 'src/shared/auth/jwt-auth.guard';
+import { RolesGuard } from 'src/shared/auth/roles.guard';
+import { Roles } from 'src/shared/auth/roles.decorator';
 
 @Controller('stores')
+@UseGuards(JwtAuthGuard) // Protect all routes with JWT authentication
 export class StoreController {
   constructor(private readonly storeService: StoreService) {}
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles('STORE_ADMIN', 'DEVELOPER') // Only allow STORE_ADMIN and DEVELOPER to create stores
   async createStore(@Body() createStoreDto: CreateStoreDto) {
     const store = await this.storeService.createStore(createStoreDto);
     return {
@@ -49,6 +56,8 @@ export class StoreController {
   }
 
   @Put(':id')
+  @UseGuards(RolesGuard)
+  @Roles('STORE_ADMIN', 'DEVELOPER') // Only allow STORE_ADMIN and DEVELOPER to update stores
   async updateStore(
     @Param('id') storeId: string,
     @Body() updateStoreDto: UpdateStoreDto,
@@ -58,6 +67,8 @@ export class StoreController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(RolesGuard)
+  @Roles('STORE_ADMIN', 'DEVELOPER') // Only allow STORE_ADMIN and DEVELOPER to delete stores
   async deleteStore(@Param('id') storeId: string) {
     return this.storeService.deleteStoreById(storeId);
   }

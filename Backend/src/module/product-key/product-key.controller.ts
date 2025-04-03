@@ -11,6 +11,7 @@ import {
   Post,
   Put,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ProductKeyService } from './product-key.service';
 import {
@@ -19,8 +20,10 @@ import {
   ProductKeyResponseDto,
   UpdateProductKeyDto,
 } from './model/product-key.dto';
+import { JwtAuthGuard } from 'src/shared/auth/jwt-auth.guard';
 
 @Controller('product-keys')
+@UseGuards(JwtAuthGuard) // Protect all routes with JWT authentication
 export class ProductKeyController {
   constructor(private readonly productKeyService: ProductKeyService) {}
 
