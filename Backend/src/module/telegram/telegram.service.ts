@@ -20,6 +20,9 @@ import { WalletService } from '../wallet/wallet.service';
 import { OrderService } from '../order/order.service';
 import { CreateDepositRequestDto } from '../deposit-request/model/deposit-request.dto';
 import { DepositRequestService } from '../deposit-request/deposit-request.service';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
 // Define a rate limiter interface
 interface RateLimiter {
@@ -59,15 +62,24 @@ const WALLET_ADDRESS_REGEX = {
 export class TelegramService implements OnModuleInit {
   private readonly bot: TelegramBot;
   private readonly logger = new Logger(TelegramService.name);
-  
+
   // Message tracking
   private readonly messageTracker = new Map<number, number>();
-  
+
   // User state tracking with timeouts
-  private readonly usersInReferralProcess = new Map<number, { timestamp: number, telegramId: string }>();
-  private readonly awaitingReferralCode = new Map<number, { timestamp: number, telegramId: string }>();
-  private readonly awaitingWalletInput = new Map<number, { timestamp: number, telegramId: string, type: CryptoType }>();
-  
+  private readonly usersInReferralProcess = new Map<
+    number,
+    { timestamp: number; telegramId: string }
+  >();
+  private readonly awaitingReferralCode = new Map<
+    number,
+    { timestamp: number; telegramId: string }
+  >();
+  private readonly awaitingWalletInput = new Map<
+    number,
+    { timestamp: number; telegramId: string; type: CryptoType }
+  >();
+
   // Rate limiting
   private readonly rateLimiters = new Map<number, RateLimiter>();
   private readonly MAX_ACTIONS_PER_MINUTE = 30;
@@ -86,7 +98,9 @@ export class TelegramService implements OnModuleInit {
     private readonly depositService: DepositRequestService,
     private readonly cryptoWalletService: CryptoWalletService,
   ) {
-    this.bot = new TelegramBot(this.configService.get('TELEGRAM_BOT_TOKEN'), { polling: true });
+    this.bot = new TelegramBot(this.configService.get('TELEGRAM_BOT_TOKEN'), {
+      polling: true,
+    });
   }
 
   onModuleInit() {
@@ -106,15 +120,15 @@ export class TelegramService implements OnModuleInit {
   private async handleStart(msg: TelegramBot.Message) {
     const chatId = msg.chat.id;
     const telegramId = msg.from.id.toString();
-    let isNewUser  = false;
+    let isNewUser = false;
 
     try {
       await this.getUserByTelegramId(telegramId);
     } catch {
-      isNewUser  = true;
+      isNewUser = true;
     }
 
-    if (isNewUser ) {
+    if (isNewUser) {
       this.bot.sendMessage(chatId, '🤝 Do you have a referral code?', {
         reply_markup: {
           inline_keyboard: [
@@ -129,115 +143,185 @@ export class TelegramService implements OnModuleInit {
   }
 
   private sendMainMenu(chatId: number, username: string) {
-    this.bot.sendMessage(chatId, `👋 Welcome, *${username}*! Choose an option:`, {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        keyboard: [
-          [{ text: '🛍️ Shop' }, { text: '👤 My Profile' }],
-          [{ text: '📌 Get My Referral Code' }],
-          [{ text: '💰 Wallet' }, { text: '📜 My Order List' }],
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: true,
+    this.bot.sendMessage(
+      chatId,
+      `👋 Welcome, *${username}*! Choose an option:`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          keyboard: [
+            [{ text: '🛍️ Shop' }, { text: '👤 My Profile' }],
+            [{ text: '📌 Get My Referral Code' }],
+            [{ text: '💰 Wallet' }, { text: '📜 My Order List' }],
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
       },
-    });
+    );
   }
 
-  private async handleBuyProduct(chatId: number, telegramId: string, productId: string) {
+  private async handleBuyProduct(
+    chatId: number,
+    telegramId: string,
+    productId: string,
+  ) {
     try {
       const user = await this.getUserByTelegramId(telegramId);
-      if (!user) return this.sendMessage(chatId, '❌ User not found. Please start again with /start');
+      if (!user)
+        return this.sendMessage(
+          chatId,
+          '❌ User not found. Please start again with /start',
+        );
 
       const product = await this.getProductById(productId);
-      if (!product) return this.sendMessage(chatId, '❌ Product not found or no longer available.');
-      if (product.stock <= 0) return this.sendMessage(chatId, '❌ Sorry, this product is out of stock.');
+      if (!product)
+        return this.sendMessage(
+          chatId,
+          '❌ Product not found or no longer available.',
+        );
+      if (product.stock <= 0)
+        return this.sendMessage(
+          chatId,
+          '❌ Sorry, this product is out of stock.',
+        );
 
       const userWallet = await this.getUserWallet(telegramId);
       if (userWallet.balance < product.price) {
-        return this.handleInsufficientBalance(chatId, telegramId, product.price, userWallet.balance);
+        return this.handleInsufficientBalance(
+          chatId,
+          telegramId,
+          product.price,
+          userWallet.balance,
+        );
       }
 
       const order = await this.createOrder(String(user.id), productId);
-      await this.updateWalletBalance(String(user.id), userWallet.id, order.total);
-      await this.createPayment(order.id, order.total);
-      await this.createTransaction(userWallet.id, String(user.id), order.id, order.total, product.name);
-
-      let message = `✅ Purchase successful! You bought ${product.name} for $${order.total.toFixed(2)}.`;
-      if (order.productKey) {
-        message += `\n🔑 Your product key: ${order.productKey}`;
-      } else {
-        message += `\n📦 Your product will be delivered shortly.`;
-      }
+      await Promise.all([
+        this.updateWalletBalance(String(user.id), userWallet.id, order.total),
+        this.createPayment(order.id, order.total),
+        this.createTransaction(
+          userWallet.id,
+          String(user.id),
+          order.id,
+          order.total,
+          product.name,
+        ),
+      ]);
 
       await this.deletePreviousMessage(chatId);
-      this.sendMessage(chatId, message);
+      await this.sendMessage(
+        chatId,
+        `✅ Purchase successful! You bought ${product.name} for $${order.total.toFixed(2)}.`,
+      );
+
+      if (order.productKey) {
+        const fileSent = await this.sendProductKeyAsFile(
+          chatId,
+          product.name,
+          order.productKey,
+        );
+        if (!fileSent) {
+          await this.sendMessage(
+            chatId,
+            `🔑 Your product key: \`${order.productKey}\``,
+            { parse_mode: 'Markdown' },
+          );
+        }
+      } else {
+        await this.sendMessage(
+          chatId,
+          `📦 Your product will be delivered shortly.`,
+        );
+      }
     } catch (error) {
       this.logger.error('Error handling purchase:', error);
-      this.sendMessage(chatId, '❌ An error occurred while processing your purchase. Please try again later.');
+      this.sendMessage(
+        chatId,
+        '❌ An error occurred while processing your purchase. Please try again later.',
+      );
     }
   }
 
   // Add this method that was referenced but not defined
-private async handleUserWallet(msg: TelegramBot.Message) {
-  const chatId = msg.chat.id;
-  const telegramId = msg.from.id.toString();
-  
-  try {
-    const wallet = await this.walletService.getWalletByTelegramId(telegramId);
-    if (!wallet) {
-      return this.bot.sendMessage(chatId, '❌ No wallet found for your account. Please contact support.');
-    }
-    
-    // Safely format and escape balance for MarkdownV2
-    const balance = wallet.balance.toFixed(2).replace('.', '\\.');
-    const telegramIdDisplay = telegramId.replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+  private async handleUserWallet(msg: TelegramBot.Message) {
+    const chatId = msg.chat.id;
+    const telegramId = msg.from.id.toString();
 
-    const message = `
+    try {
+      const wallet = await this.walletService.getWalletByTelegramId(telegramId);
+      if (!wallet) {
+        return this.bot.sendMessage(
+          chatId,
+          '❌ No wallet found for your account. Please contact support.',
+        );
+      }
+
+      // Safely format and escape balance for MarkdownV2
+      const balance = wallet.balance.toFixed(2).replace('.', '\\.');
+      const telegramIdDisplay = telegramId.replace(
+        /([_*[\]()~`>#+\-=|{}.!\\])/g,
+        '\\$1',
+      );
+
+      const message = `
 💰 *Your Wallet*:
 
 💲 *Balance:* $${balance}
 
 🔗 *Telegram ID:* ${telegramIdDisplay}
     `;
-    
-    const keyboard = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: 'Add Balance',
-              callback_data: `add_balance_${telegramId}`,
-            },
+
+      const keyboard = {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: 'Add Balance',
+                callback_data: `add_balance_${telegramId}`,
+              },
+            ],
           ],
-        ],
-      },
-    };
+        },
+      };
 
-    await this.deletePreviousMessage(chatId);
-    const newMessage = await this.bot.sendMessage(chatId, message, {
-      parse_mode: 'MarkdownV2',
-      reply_markup: keyboard.reply_markup,
-    });
-    
-    this.messageTracker.set(chatId, newMessage.message_id);
-  } catch (error) {
-    this.logger.error(`Error fetching wallet information for user ${telegramId}:`, error);
-    this.bot.sendMessage(chatId, '❌ Error fetching wallet information. Please try again later.');
-  }
-}
+      await this.deletePreviousMessage(chatId);
+      const newMessage = await this.bot.sendMessage(chatId, message, {
+        parse_mode: 'MarkdownV2',
+        reply_markup: keyboard.reply_markup,
+      });
 
-private async deletePreviousMessage(chatId: number) {
-  if (this.messageTracker.has(chatId)) {
-    const previousMessageId = this.messageTracker.get(chatId);
-    try {
-      await this.bot.deleteMessage(chatId, previousMessageId);
+      this.messageTracker.set(chatId, newMessage.message_id);
     } catch (error) {
-      this.logger.warn(`Failed to delete message ${previousMessageId} in chat ${chatId}: ${error.message}`);
+      this.logger.error(
+        `Error fetching wallet information for user ${telegramId}:`,
+        error,
+      );
+      this.bot.sendMessage(
+        chatId,
+        '❌ Error fetching wallet information. Please try again later.',
+      );
     }
   }
-}
 
-  private async sendMessage(chatId: number, message: string, replyMarkup?: any) {
+  private async deletePreviousMessage(chatId: number) {
+    if (this.messageTracker.has(chatId)) {
+      const previousMessageId = this.messageTracker.get(chatId);
+      try {
+        await this.bot.deleteMessage(chatId, previousMessageId);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to delete message ${previousMessageId} in chat ${chatId}: ${error.message}`,
+        );
+      }
+    }
+  }
+
+  private async sendMessage(
+    chatId: number,
+    message: string,
+    replyMarkup?: any,
+  ) {
     return this.bot.sendMessage(chatId, message, replyMarkup);
   }
 
@@ -253,7 +337,12 @@ private async deletePreviousMessage(chatId: number) {
     return await this.walletService.getWalletByTelegramId(telegramId);
   }
 
-  private async handleInsufficientBalance(chatId: number, telegramId: string, productPrice: number, userBalance: number) {
+  private async handleInsufficientBalance(
+    chatId: number,
+    telegramId: string,
+    productPrice: number,
+    userBalance: number,
+  ) {
     const message = `❌ Insufficient balance. You need $${productPrice.toFixed(2)} but have only $${userBalance.toFixed(2)}.`;
     const replyMarkup = {
       reply_markup: {
@@ -278,9 +367,14 @@ private async deletePreviousMessage(chatId: number) {
     });
   }
 
-  private async updateWalletBalance(userId: string, walletId: string, amount: number) {
+  private async updateWalletBalance(
+    userId: string,
+    walletId: string,
+    amount: number,
+  ) {
     await this.walletService.updateWalletByUserId(String(userId), {
-      balance: (await this.walletService.getWalletById(walletId)).balance - amount,
+      balance:
+        (await this.walletService.getWalletById(walletId)).balance - amount,
     });
   }
 
@@ -295,7 +389,13 @@ private async deletePreviousMessage(chatId: number) {
     });
   }
 
-  private async createTransaction(walletId: string, userId: string, orderId: string, amount: number, productName: string) {
+  private async createTransaction(
+    walletId: string,
+    userId: string,
+    orderId: string,
+    amount: number,
+    productName: string,
+  ) {
     return await this.prisma.transaction.create({
       data: {
         walletId: String(walletId),
@@ -309,16 +409,24 @@ private async deletePreviousMessage(chatId: number) {
     });
   }
 
-  private async handleReferralResponse(callbackQuery: TelegramBot.CallbackQuery) {
+  private async handleReferralResponse(
+    callbackQuery: TelegramBot.CallbackQuery,
+  ) {
     const chatId = callbackQuery.message.chat.id;
     const data = callbackQuery.data;
     const telegramId = callbackQuery.from.id.toString();
 
     if (data.startsWith('referral_yes_')) {
-      this.awaitingReferralCode.set(chatId, { timestamp: Date.now(), telegramId });
-      this.bot.sendMessage(chatId, '🔢 Please enter the referral code (Telegram ID):');
+      this.awaitingReferralCode.set(chatId, {
+        timestamp: Date.now(),
+        telegramId,
+      });
+      this.bot.sendMessage(
+        chatId,
+        '🔢 Please enter the referral code (Telegram ID):',
+      );
     } else if (data.startsWith('referral_no_')) {
-      await this.registerUser (chatId, telegramId);
+      await this.registerUser(chatId, telegramId);
     }
 
     this.bot.answerCallbackQuery(callbackQuery.id);
@@ -332,14 +440,20 @@ private async deletePreviousMessage(chatId: number) {
       const address = msg.text.trim();
       // First get the wallet input data
       const walletInput = this.awaitingWalletInput.get(chatId);
-      
+
       // Then use it for validation
-      if (walletInput && !this.validateWalletAddress(address, walletInput.type)) {
-          return this.sendMessage(chatId, '❌ Invalid wallet address format. Please try again.');
+      if (
+        walletInput &&
+        !this.validateWalletAddress(address, walletInput.type)
+      ) {
+        return this.sendMessage(
+          chatId,
+          '❌ Invalid wallet address format. Please try again.',
+        );
       }
       await this.saveWallet(chatId, address);
       return;
-  }
+    }
 
     if (msg.text === '📌 Get My Referral Code') {
       await this.sendReferralCode(chatId, telegramId);
@@ -353,9 +467,12 @@ private async deletePreviousMessage(chatId: number) {
       try {
         const referrer = await this.getUserByTelegramId(referralCode);
         if (!referrer || !referrer.telegramId) {
-          return this.bot.sendMessage(chatId, '❌ Invalid referral code. Proceeding without a referral.');
+          return this.bot.sendMessage(
+            chatId,
+            '❌ Invalid referral code. Proceeding without a referral.',
+          );
         }
-        const user = await this.registerUser (chatId, telegramId);
+        const user = await this.registerUser(chatId, telegramId);
 
         let userId: string | undefined;
 
@@ -366,37 +483,50 @@ private async deletePreviousMessage(chatId: number) {
         }
 
         if (!userId) {
-          return this.bot.sendMessage(chatId, '❌ Error registering user. Please try again.');
+          return this.bot.sendMessage(
+            chatId,
+            '❌ Error registering user. Please try again.',
+          );
         }
         await this.referralService.createReferral({
           referredById: String(referrer.id),
           referredUserId: userId,
           rewardAmount: 0,
         });
-        this.bot.sendMessage(chatId, '🎉 You have been referred successfully! Thank you for joining.');
+        this.bot.sendMessage(
+          chatId,
+          '🎉 You have been referred successfully! Thank you for joining.',
+        );
       } catch (error) {
         this.logger.error('Error processing referral:', error);
-        this.bot.sendMessage(chatId, '❌ Error processing referral. Please try again.');
+        this.bot.sendMessage(
+          chatId,
+          '❌ Error processing referral. Please try again.',
+        );
       }
     }
   }
 
-  private async registerUser (chatId: number, telegramId: string) {
+  private async registerUser(chatId: number, telegramId: string) {
     const username = `user_${telegramId}`;
-    const user = await this.userService.registerUser ({
+    const user = await this.userService.registerUser({
       telegramId,
       username,
       role: 'CUSTOMER',
     });
 
-    this.bot.sendMessage(chatId, `👋 Welcome to our Automated Bot! Choose an option:`, {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        keyboard: [[{ text: '🛍️ Shop' }, { text: '👤 My Profile' }]],
-        resize_keyboard: true,
-        one_time_keyboard: true,
+    this.bot.sendMessage(
+      chatId,
+      `👋 Welcome to our Automated Bot! Choose an option:`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          keyboard: [[{ text: '🛍️ Shop' }, { text: '👤 My Profile' }]],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
       },
-    });
+    );
 
     return user;
   }
@@ -414,7 +544,11 @@ private async deletePreviousMessage(chatId: number) {
     const limit = 10;
 
     try {
-      const ordersResponse = await this.orderService.getOrdersByTelegramId(telegramId, page, limit);
+      const ordersResponse = await this.orderService.getOrdersByTelegramId(
+        telegramId,
+        page,
+        limit,
+      );
       const orders = ordersResponse.data;
 
       if (orders.length === 0) {
@@ -422,15 +556,22 @@ private async deletePreviousMessage(chatId: number) {
         return;
       }
 
-      const orderMessages = orders.map((order) => {
-        const deliveryType = order.product.autoDeliver ? 'Automatic Delivery' : 'Manual Delivery';
-        return `🆔 Order ID: ${order.id}\n📦 Product: ${order.product.name}\n💲 Total: $${order.total.toFixed(2)}\n📅 Date: ${new Date(order.createdAt).toLocaleDateString()}`;
-      }).join('\n\n');
+      const orderMessages = orders
+        .map((order) => {
+          const deliveryType = order.product.autoDeliver
+            ? 'Automatic Delivery'
+            : 'Manual Delivery';
+          return `🆔 Order ID: ${order.id}\n📦 Product: ${order.product.name}\n💲 Total: $${order.total.toFixed(2)}\n📅 Date: ${new Date(order.createdAt).toLocaleDateString()}`;
+        })
+        .join('\n\n');
 
       this.bot.sendMessage(chatId, `📜 Your Orders:\n\n${orderMessages}`);
     } catch (error) {
       this.logger.error('Error fetching orders:', error);
-      this.bot.sendMessage(chatId, '❌ An error occurred while fetching your orders. Please try again later.');
+      this.bot.sendMessage(
+        chatId,
+        '❌ An error occurred while fetching your orders. Please try again later.',
+      );
     }
   }
 
@@ -513,15 +654,16 @@ private async deletePreviousMessage(chatId: number) {
       }
 
       if (data.startsWith('categories_')) {
-        const page = parseInt(data.split('_')[1], 10 );
+        const page = parseInt(data.split('_')[1], 10);
         await this.sendProductCategories(chatId, page);
         return;
       }
 
       if (data.startsWith('product_page_')) {
         const [_, categoryId, direction] = data.split('_');
-        let currentPage = this.messageTracker.get(chatId) || 1; 
-        currentPage = direction === 'next' ? currentPage + 1 : Math.max(1, currentPage - 1);
+        let currentPage = this.messageTracker.get(chatId) || 1;
+        currentPage =
+          direction === 'next' ? currentPage + 1 : Math.max(1, currentPage - 1);
         await this.sendProductsByCategory(chatId, categoryId, currentPage);
         return;
       }
@@ -529,13 +671,19 @@ private async deletePreviousMessage(chatId: number) {
       this.bot.answerCallbackQuery(query.id);
     } catch (error) {
       this.logger.error('Error handling callback query:', error);
-      this.bot.sendMessage(chatId, 'Sorry, an error occurred. Please try again later.');
+      this.bot.sendMessage(
+        chatId,
+        'Sorry, an error occurred. Please try again later.',
+      );
       this.bot.answerCallbackQuery(query.id, { text: 'An error occurred' });
     }
   }
 
   private async handleAddBalance(chatId: number): Promise<void> {
-    const initialMessage = await this.bot.sendMessage(chatId, 'Please enter the amount you want to add:');
+    const initialMessage = await this.bot.sendMessage(
+      chatId,
+      'Please enter the amount you want to add:',
+    );
 
     const messageListener = this.bot.on('message', async (msg) => {
       const amount = parseFloat(msg.text.trim());
@@ -544,7 +692,10 @@ private async deletePreviousMessage(chatId: number) {
       await this.bot.deleteMessage(chatId, initialMessage.message_id);
 
       if (isNaN(amount) || amount <= 0 || amount > 1000) {
-        this.bot.sendMessage(chatId, '❌ Please enter a valid amount (greater than 0 and less than or equal to $1000).');
+        this.bot.sendMessage(
+          chatId,
+          '❌ Please enter a valid amount (greater than 0 and less than or equal to $1000).',
+        );
         return;
       }
 
@@ -556,12 +707,18 @@ private async deletePreviousMessage(chatId: number) {
           amount: amount,
         };
 
-        this.logger.log(`Creating deposit request with DTO: ${JSON.stringify(createDto)}`);
-        const response = await this.depositService.createDepositRequest(createDto);
+        this.logger.log(
+          `Creating deposit request with DTO: ${JSON.stringify(createDto)}`,
+        );
+        const response =
+          await this.depositService.createDepositRequest(createDto);
 
         if (response.paymentLink) {
           const paymentLink = response.paymentLink;
-          this.bot.sendMessage(chatId, `Processing your request to add $${amount}...`);
+          this.bot.sendMessage(
+            chatId,
+            `Processing your request to add $${amount}...`,
+          );
           this.bot.sendMessage(
             chatId,
             `✅ Click the link below to proceed with the payment of $${amount}:`,
@@ -579,18 +736,26 @@ private async deletePreviousMessage(chatId: number) {
             },
           );
         } else {
-          this.bot.sendMessage(chatId, '❌ Something went wrong. Please try again later.');
+          this.bot.sendMessage(
+            chatId,
+            '❌ Something went wrong. Please try again later.',
+          );
         }
       } catch (error) {
         this.logger.error('Error processing add balance request:', error);
-        this.bot.sendMessage(chatId, '❌ An error occurred while processing your request. Please try again later.');
+        this.bot.sendMessage(
+          chatId,
+          '❌ An error occurred while processing your request. Please try again later.',
+        );
       } finally {
         this.bot.off('message', messageListener);
       }
     });
   }
 
-  private async handleProductDetails(query: TelegramBot.CallbackQuery): Promise<void> {
+  private async handleProductDetails(
+    query: TelegramBot.CallbackQuery,
+  ): Promise<void> {
     const chatId = query.message.chat.id;
     const productId = query.data.split('_')[1];
 
@@ -641,29 +806,41 @@ private async deletePreviousMessage(chatId: number) {
       this.bot.answerCallbackQuery(query.id);
     } catch (error) {
       this.logger.error('Error fetching product details:', error);
-      this.bot.sendMessage(chatId, '❌ An error occurred while fetching product details. Please try again later.');
+      this.bot.sendMessage(
+        chatId,
+        '❌ An error occurred while fetching product details. Please try again later.',
+      );
     }
   }
 
-  private async handleBackToCategories(query: TelegramBot.CallbackQuery): Promise<void> {
+  private async handleBackToCategories(
+    query: TelegramBot.CallbackQuery,
+  ): Promise<void> {
     const chatId = query.message.chat.id;
 
     await this.bot.deleteMessage(chatId, query.message.message_id),
-    await this.sendProductCategories(chatId, 1);
+      await this.sendProductCategories(chatId, 1);
     this.bot.answerCallbackQuery(query.id);
   }
 
-  private async handleBackToProducts(query: TelegramBot.CallbackQuery): Promise<void> {
+  private async handleBackToProducts(
+    query: TelegramBot.CallbackQuery,
+  ): Promise<void> {
     const parts = query.data.split('_');
     const categoryId = parts[3];
     const page = parseInt(parts[4], 10);
 
-    await this.bot.deleteMessage(query.message.chat.id, query.message.message_id);
+    await this.bot.deleteMessage(
+      query.message.chat.id,
+      query.message.message_id,
+    );
     await this.sendProductsByCategory(query.message.chat.id, categoryId, page);
     this.bot.answerCallbackQuery(query.id);
   }
 
-  private async handleBuyProductCallback(query: TelegramBot.CallbackQuery): Promise<void> {
+  private async handleBuyProductCallback(
+    query: TelegramBot.CallbackQuery,
+  ): Promise<void> {
     const productId = query.data.split('_')[1];
     await this.handleBuyProduct(
       query.message.chat.id,
@@ -732,7 +909,8 @@ private async deletePreviousMessage(chatId: number) {
 
   private async sendProductCategories(chatId: number, page: number) {
     try {
-      const response = await this.productCategoryService.getAllProductCategories(page, 5);
+      const response =
+        await this.productCategoryService.getAllProductCategories(page, 5);
       if (!response.data.length) {
         return this.bot.sendMessage(chatId, '❌ No categories available.');
       }
@@ -775,9 +953,17 @@ private async deletePreviousMessage(chatId: number) {
     }
   }
 
-  private async sendProductsByCategory(chatId: number, categoryId: string, page: number) {
+  private async sendProductsByCategory(
+    chatId: number,
+    categoryId: string,
+    page: number,
+  ) {
     try {
-      const response = await this.productService.getProductsByCategoryId(categoryId, page, 5);
+      const response = await this.productService.getProductsByCategoryId(
+        categoryId,
+        page,
+        5,
+      );
 
       if (!response.data.length) {
         return this.bot.sendMessage(chatId, '❌ No products in this category.');
@@ -792,7 +978,7 @@ private async deletePreviousMessage(chatId: number) {
 
       buttons.push([
         {
-          text : '🔙 Back to Categories',
+          text: '🔙 Back to Categories',
           callback_data: 'back_to_categories',
         },
       ]);
@@ -801,28 +987,32 @@ private async deletePreviousMessage(chatId: number) {
         buttons.push([
           ...(page > 1
             ? [
-              {
-                text: '⬅️ Previous',
-                callback_data: `product_page_${categoryId}_prev`,
-              },
-            ]
+                {
+                  text: '⬅️ Previous',
+                  callback_data: `product_page_${categoryId}_prev`,
+                },
+              ]
             : []),
           ...(page < response.pagination.totalPages
             ? [
-              {
-                text: '➡️ Next',
-                callback_data: `product_page_${categoryId}_next`,
-              },
-            ]
+                {
+                  text: '➡️ Next',
+                  callback_data: `product_page_${categoryId}_next`,
+                },
+              ]
             : []),
         ]);
       }
 
       await this.deletePreviousMessage(chatId);
-      const previousMessage = await this.bot.sendMessage(chatId, `🛒 *Products - Page ${page}*`, {
-        parse_mode: 'Markdown',
-        reply_markup: { inline_keyboard: buttons },
-      });
+      const previousMessage = await this.bot.sendMessage(
+        chatId,
+        `🛒 *Products - Page ${page}*`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: { inline_keyboard: buttons },
+        },
+      );
 
       this.messageTracker.set(chatId, previousMessage.message_id);
     } catch (error) {
@@ -884,11 +1074,20 @@ private async deletePreviousMessage(chatId: number) {
     }
   }
 
-  private async sendUserWallets(chatId: number, telegramId: string, page: number = 1) {
+  private async sendUserWallets(
+    chatId: number,
+    telegramId: string,
+    page: number = 1,
+  ) {
     try {
       const user = await this.getUserByTelegramId(telegramId);
       const userId = user.id;
-      const walletsResponse = await this.cryptoWalletService.getAllCryptoWalletsByUserIdentifier(String(userId), page, 5);
+      const walletsResponse =
+        await this.cryptoWalletService.getAllCryptoWalletsByUserIdentifier(
+          String(userId),
+          page,
+          5,
+        );
       const wallets = walletsResponse.data;
 
       if (!wallets || wallets.length === 0) {
@@ -923,7 +1122,10 @@ private async deletePreviousMessage(chatId: number) {
         });
       }
 
-      if (walletsResponse.pagination.currentPage < walletsResponse.pagination.totalPages) {
+      if (
+        walletsResponse.pagination.currentPage <
+        walletsResponse.pagination.totalPages
+      ) {
         paginationButtons.push({
           text: '➡️ Next',
           callback_data: `my_wallets_${page + 1}_${telegramId}`,
@@ -943,7 +1145,7 @@ private async deletePreviousMessage(chatId: number) {
             ],
           ],
         },
- };
+      };
 
       this.bot.sendMessage(chatId, message, options);
     } catch (error) {
@@ -982,7 +1184,11 @@ private async deletePreviousMessage(chatId: number) {
     telegramId: string,
     type: CryptoType,
   ) {
-    this.awaitingWalletInput.set(chatId, { timestamp: Date.now(), telegramId, type });
+    this.awaitingWalletInput.set(chatId, {
+      timestamp: Date.now(),
+      telegramId,
+      type,
+    });
 
     this.bot.sendMessage(chatId, '📥 Please enter your wallet address:', {
       parse_mode: 'HTML',
@@ -993,14 +1199,20 @@ private async deletePreviousMessage(chatId: number) {
     const walletInput = this.awaitingWalletInput.get(chatId);
 
     if (!walletInput) {
-      return this.bot.sendMessage(chatId, '❌ Unexpected input. Please start again.');
+      return this.bot.sendMessage(
+        chatId,
+        '❌ Unexpected input. Please start again.',
+      );
     }
 
     const { telegramId, type } = walletInput;
     this.awaitingWalletInput.delete(chatId);
 
     if (!this.validateWalletAddress(address, type)) {
-      return this.bot.sendMessage(chatId, '❌ Invalid wallet address format. Please try again.');
+      return this.bot.sendMessage(
+        chatId,
+        '❌ Invalid wallet address format. Please try again.',
+      );
     }
 
     try {
@@ -1019,7 +1231,11 @@ private async deletePreviousMessage(chatId: number) {
       );
     } catch (error) {
       this.logger.error('Error adding wallet:', error);
-      this.bot.sendMessage(chatId, '❌ Error adding wallet. Address may already exist.', { parse_mode: 'HTML' });
+      this.bot.sendMessage(
+        chatId,
+        '❌ Error adding wallet. Address may already exist.',
+        { parse_mode: 'HTML' },
+      );
     }
   }
 
@@ -1029,6 +1245,46 @@ private async deletePreviousMessage(chatId: number) {
   }
 
   private isValidCallback(data: string): boolean {
-    return VALID_CALLBACK_PATTERNS.some(pattern => pattern.test(data));
+    return VALID_CALLBACK_PATTERNS.some((pattern) => pattern.test(data));
+  }
+
+  private async sendProductKeyAsFile(
+    chatId: number,
+    productName: string,
+    productKey: string,
+  ): Promise<boolean> {
+    try {
+      const tempDir = path.join(os.tmpdir(), 'product-keys');
+      !fs.existsSync(tempDir) && fs.mkdirSync(tempDir, { recursive: true });
+
+      const fileName = `${productName.replace(/[^a-zA-Z0-9]/g, '_')}-${Date.now()}.txt`;
+      const filePath = path.join(tempDir, fileName);
+
+      const fileContent = `PRODUCT KEY INFORMATION
+  ------------------------
+  Product: ${productName}
+  Key: ${productKey}
+  Date: ${new Date().toLocaleString()}
+  
+  Please keep this information secure and do not share it with others.`;
+
+      fs.writeFileSync(filePath, fileContent);
+      await this.bot.sendDocument(chatId, filePath, {
+        caption: `✅ Here is your product key for ${productName}. The key is also included in the attached file.`,
+      });
+
+      setTimeout(() => {
+        try {
+          fs.existsSync(filePath) && fs.unlinkSync(filePath);
+        } catch {
+          this.logger.warn(`Failed to delete: ${filePath}`);
+        }
+      }, 3000);
+
+      return true;
+    } catch (error) {
+      this.logger.error(`Error sending product key file:`, error);
+      return false;
+    }
   }
 }

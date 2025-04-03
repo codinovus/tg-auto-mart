@@ -15,10 +15,10 @@ import { ToastModule } from 'primeng/toast';
     selector: 'app-login',
     standalone: true,
     imports: [ButtonModule, InputTextModule, PasswordModule, FormsModule, RouterModule, RippleModule, AppFloatingConfigurator, ToastModule], // Add ToastModule here
-    providers: [MessageService], // Provide MessageService
+    providers: [MessageService],
     template: `
         <app-floating-configurator />
-        <p-toast></p-toast> <!-- Add p-toast component for notifications -->
+        <p-toast></p-toast>
         <div class="bg-surface-50 dark:bg-surface-950 flex items-center justify-center min-h-screen min-w-[100vw] overflow-hidden">
             <div class="flex flex-col items-center justify-center">
                 <div style="border-radius: 56px; padding: 0.3rem; background: linear-gradient(180deg, var(--primary-color) 10%, rgba(33, 150, 243, 0) 30%)">
