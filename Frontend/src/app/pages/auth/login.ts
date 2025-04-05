@@ -59,7 +59,7 @@ export class Login implements OnInit {
 
     ngOnInit() {
         if (this.authService.isAuthenticated()) {
-            this.router.navigate(['/']); // Redirect to home if already logged in
+            this.router.navigate(['/']);
         }
     }
 
@@ -72,16 +72,22 @@ export class Login implements OnInit {
 
         this.loginService.login(loginData).pipe(finalize(() => this.isLoading = false)).subscribe(
             (response: any) => {
-                localStorage.setItem('accessToken', response.tokens.accessToken);
-                localStorage.setItem('refreshToken', response.tokens.refreshToken);
+                // Check if the response contains tokens
+                if (response.tokens && response.tokens.accessToken && response.tokens.refreshToken) {
+                    localStorage.setItem('accessToken', response.tokens.accessToken);
+                    localStorage.setItem('refreshToken', response.tokens.refreshToken);
 
-                if (response.user.role === 'STORE_ADMIN' || response.user.role === 'DEVELOPER') {
-                    this.router.navigate(['/']);
-                } else if (response.user.role === 'CUSTOMER') {
-                    this.router.navigate(['/error']);
+                    if (response.user.role === 'STORE_ADMIN' || response.user.role === 'DEVELOPER') {
+                        this.router.navigate(['/']);
+                    } else if (response.user.role === 'CUSTOMER') {
+                        this.router.navigate(['/error']);
+                    }
+
+                    this.messageService.add({ severity: 'success', summary: 'Success', detail: response.message || 'Login successful!' });
+                } else {
+                    // Handle the case where tokens are not present
+                    this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Login failed. Tokens are missing in the response.' });
                 }
-
-                this.messageService.add({ severity: 'success', summary: 'Success', detail: response.message || 'Login successful!' });
             },
             (error) => {
                 console.error('Login failed:', error);

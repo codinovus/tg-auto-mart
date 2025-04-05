@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { Disclaimer } from '../disclaimer.component'; // Correct the import path
 import { RouterModule } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { RippleModule } from 'primeng/ripple';

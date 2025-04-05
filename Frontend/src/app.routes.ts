@@ -4,6 +4,7 @@ import { Dashboard } from './app/pages/dashboard/dashboard';
 import { Notfound } from './app/pages/notfound/notfound';
 import { CreatupdateuserComponent } from './app/pages/user/creatupdateuser/creatupdateuser.component';
 import { AuthGuard } from './app/shared/auth.guard'; // Import AuthGuard
+import { Disclaimer } from './app/pages/disclaimer.component';
 
 export const appRoutes: Routes = [
     {
@@ -16,6 +17,7 @@ export const appRoutes: Routes = [
         ]
     },
     { path: 'notfound', component: Notfound },
+    { path: 'disclaimer', component: Disclaimer},
     { path: 'auth', loadChildren: () => import('./app/pages/auth/auth.routes') }, // Login route remains accessible
     { path: '**', redirectTo: '/notfound' }
 ];

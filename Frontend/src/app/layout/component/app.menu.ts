@@ -112,6 +112,12 @@ export class AppMenu implements OnInit {
                 items: [
                     { label: 'Referrals', icon: 'pi pi-share-alt', routerLink: ['/pages/refral'] },
                 ]
+            },
+            {
+                label: 'Disclaimer',
+                items: [
+                    { label: 'Disclaimer', icon: 'pi pi-exclamation-triangle', routerLink: ['/disclaimer'] },
+                ]
             }
         ];
     }
