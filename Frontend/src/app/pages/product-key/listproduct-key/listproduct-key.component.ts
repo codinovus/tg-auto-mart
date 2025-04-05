@@ -6,14 +6,14 @@ import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
-import { ProductKeyService } from '../../../shared/service/product-key.service'; // Adjust the import path as necessary
-import { ProductKeyResponseDto, GetAllProductKeysResponseDto } from '../model/product-key.dto'; // Adjust the import path as necessary
+import { ProductKeyService } from '../../../shared/service/product-key.service';
+import { ProductKeyResponseDto, GetAllProductKeysResponseDto } from '../model/product-key.dto';
 import { Router } from '@angular/router';
 import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { Subject, BehaviorSubject, debounceTime, takeUntil } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-product-key',
@@ -36,12 +36,13 @@ import { Subject, BehaviorSubject, debounceTime, takeUntil } from 'rxjs';
 })
 export class ListProductKeyComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
-    private searchQuery$ = new BehaviorSubject<string>(''); // BehaviorSubject for search input
+    private searchSubject = new Subject<string>();
     productKeys!: ProductKeyResponseDto[];
     loading: boolean = true;
-    first: number = 0; // First row offset
-    rows: number = 10; // Number of rows per page
-    totalRecords: number = 0; // Total number of records
+    first: number = 0;
+    rows: number = 10;
+    totalRecords: number = 0;
+    searchTerm: string = '';
 
     constructor(
         private productKeyService: ProductKeyService,
@@ -51,21 +52,21 @@ export class ListProductKeyComponent implements OnInit, OnDestroy {
     ) {}
 
     ngOnInit() {
-        this.loadProductKeys();
-        this.setupSearchListener(); // Set up the search listener
-    }
+        this.loadProductKeys(); // Load product keys only once on initialization
 
-    setupSearchListener() {
-        this.searchQuery$
-            .pipe(debounceTime(500), takeUntil(this.unsubscribe$))
-            .subscribe(searchValue => {
-                this.loadProductKeys(1, this.rows, searchValue); // Load keys with the search value
-            });
+        this.searchSubject.pipe(
+            debounceTime(500),
+            distinctUntilChanged(),
+            takeUntil(this.unsubscribe$)
+        ).subscribe(searchValue => {
+            this.searchTerm = searchValue;
+            this.loadProductKeys(1, this.rows, searchValue); // Load product keys based on search input
+        });
     }
 
     loadProductKeys(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.productKeyService.getAllProductKeys(page, limit, search) // Pass the search parameter
+        this.productKeyService.getAllProductKeys(page, limit, search)
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllProductKeysResponseDto) => {
                 this.productKeys = response.data;
@@ -79,8 +80,8 @@ export class ListProductKeyComponent implements OnInit, OnDestroy {
     }
 
     onSearch(event: Event) {
-        const searchValue = (event.target as HTMLInputElement).value;
-        this.searchQuery$.next(searchValue); // Update the search query
+        const searchValue = (event.target as HTMLInputElement).value.trim();
+        this.searchSubject.next(searchValue); // Trigger search
     }
 
     onEdit(productKeyId: string | number) {
@@ -106,7 +107,7 @@ export class ListProductKeyComponent implements OnInit, OnDestroy {
                 this.onDelete(productKeyId);
             },
             reject: () => {
-                this.messageService.add({ severity: 'error', summary: 'Rejected', detail: 'You have rejected', life: 3000 });
+                this.messageService.add({ severity: 'error', summary                : 'Rejected', detail: 'You have rejected', life: 3000 });
             }
         });
     }
@@ -115,7 +116,7 @@ export class ListProductKeyComponent implements OnInit, OnDestroy {
         this.productKeyService.deleteProductKeyById(String(productKeyId)).subscribe({
             next: () => {
                 this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'Product key deleted', life: 3000 });
-                this.loadProductKeys(1, this.rows, this.searchQuery$.getValue()); // Reload keys after deletion
+                this.loadProductKeys(1, this.rows, this.searchTerm); // Reload product keys after deletion
             },
             error: (error) => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete product key', life: 3000 });
@@ -132,8 +133,8 @@ export class ListProductKeyComponent implements OnInit, OnDestroy {
     onPageChange(event: any) {
         this.first = event.first;
         this.rows = event.rows;
-        const page = event.first / event.rows + 1; // Calculate page number
-        this.loadProductKeys(page, event.rows, this.searchQuery$.getValue()); // Load keys for the new page
+        const page = event.first / event.rows + 1; // Calculate the current page
+        this.loadProductKeys(page, event.rows, this.searchTerm); // Load product keys for the new page
     }
 
     navigateToCreateProductKey() {

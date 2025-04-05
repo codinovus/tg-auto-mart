@@ -72,16 +72,30 @@ export class CreateupdateproductComponent implements OnInit, OnDestroy {
   }
 
   private loadCategories(): void {
-    this.categoryService.getAllProductCategories()
+    this.loadAllCategoryPages(1, []);
+  }
+
+  private loadAllCategoryPages(page: number, accumulator: any[]): void {
+    this.loading = true;
+
+    this.categoryService.getAllProductCategories(page, 10)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          this.categories = response.data.map(category => ({
-            label: category.name,
-            value: category.id
-          }));
+          const allData = [...accumulator, ...response.data];
+
+          if (response.data.length === 10) {
+            this.loadAllCategoryPages(page + 1, allData);
+          } else {
+            this.categories = allData.map(category => ({
+              label: category.name,
+              value: category.id
+            }));
+            this.loading = false;
+          }
         },
         error: (error: any) => {
+          this.loading = false;
           const errorMsg = error.error?.message || error.message || 'Failed to load categories';
           this.messageService.showError('Error', errorMsg);
           console.error('Error loading categories:', error);
@@ -90,20 +104,35 @@ export class CreateupdateproductComponent implements OnInit, OnDestroy {
   }
 
   private loadStores(): void {
-    this.storeService.getAllStores()
+    this.loadAllStoresPages(1, []);
+  }
+
+  private loadAllStoresPages(page: number, accumulator: any[]): void {
+    this.loading = true;
+
+    this.storeService.getAllStores(page, 10)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          this.stores = response.data.map(store => ({
-            label: store.name,
-            value: store.id
-          }));
+          const allData = [...accumulator, ...response.data];
+
+          if (response.data.length === 10) {
+            this.loadAllStoresPages(page + 1, allData);
+          } else {
+            this.stores = allData.map(store => ({
+              label: store.name,
+              value: store.id
+            }));
+            this.loading = false;
+          }
         },
         error: (error: any) => {
+          this.loading = false;
           const errorMsg = error.error?.message || error.message || 'Failed to load stores';
           this.messageService.showError('Error', errorMsg);
           console.error('Error loading stores:', error);
-        } });
+        }
+      });
   }
 
   private handleRouteParams(): void {

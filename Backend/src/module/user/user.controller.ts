@@ -35,7 +35,7 @@ export class UserController {
 
   @Get()
   @UseGuards(RolesGuard)
-  @Roles('ADMIN') // Only allow ADMIN to get all users
+  @Roles('STORE_ADMIN', 'DEVELOPER')
   async getAllUsers(
       @Query('page', new DefaultValuePipe('1')) page: string,
       @Query('limit', new DefaultValuePipe('10')) limit: string,
@@ -60,7 +60,7 @@ export class UserController {
 
   @Get(':id')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN') // Only allow ADMIN to get user by ID
+  @Roles('STORE_ADMIN', 'DEVELOPER')
   async getUserById(@Param('id') id: string): Promise<GetUserByIdResponseDto> {
       const user = await this.userService.getUserById(id);
       return new GetUserByIdResponseDto(
@@ -77,7 +77,7 @@ export class UserController {
 
   @Put(':id')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN') // Only allow ADMIN to update user
+  @Roles('STORE_ADMIN', 'DEVELOPER')
   async updateUser (
       @Param('id') userId: string,
       @Body() updateUserDto: UpdateUserDto
@@ -88,7 +88,7 @@ export class UserController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @UseGuards(RolesGuard)
-  @Roles('ADMIN') // Only allow ADMIN to delete user
+  @Roles('STORE_ADMIN', 'DEVELOPER')
   async deleteUser (@Param('id') userId: string): Promise<{ success: boolean; message: string }> {
       return this.userService.deleteUser (userId);
   }  

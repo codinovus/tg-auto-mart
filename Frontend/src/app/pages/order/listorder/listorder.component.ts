@@ -13,7 +13,7 @@ import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { BehaviorSubject, Subject, debounceTime, takeUntil } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-order',
@@ -36,12 +36,13 @@ import { BehaviorSubject, Subject, debounceTime, takeUntil } from 'rxjs';
 })
 export class ListOrderComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
-    private searchQuery$ = new BehaviorSubject<string>('');
+    private searchSubject = new Subject<string>();
     orders!: OrderResponseDto[];
     loading: boolean = true;
     first: number = 0;
     rows: number = 10;
     totalRecords: number = 0;
+    searchTerm: string = '';
 
     constructor(
         private orderService: OrderService,
@@ -51,9 +52,15 @@ export class ListOrderComponent implements OnInit, OnDestroy {
     ) {}
 
     ngOnInit() {
-        this.loadOrders();
-        this.searchQuery$.pipe(debounceTime(500), takeUntil(this.unsubscribe$)).subscribe(query => {
-            this.loadOrders(1, this.rows, query);
+        this.loadOrders(); // Load orders only once on initialization
+
+        this.searchSubject.pipe(
+            debounceTime(500),
+            distinctUntilChanged(),
+            takeUntil(this.unsubscribe$)
+        ).subscribe(searchValue => {
+            this.searchTerm = searchValue;
+            this.loadOrders(1, this.rows, searchValue); // Load orders based on search input
         });
     }
 
@@ -73,8 +80,8 @@ export class ListOrderComponent implements OnInit, OnDestroy {
     }
 
     onSearch(event: Event) {
-        const searchValue = (event.target as HTMLInputElement).value;
-        this.searchQuery$.next(searchValue);
+        const searchValue = (event.target as HTMLInputElement).value.trim();
+        this.searchSubject.next(searchValue); // Trigger search
     }
 
     onEdit(orderId: string | number) {
@@ -102,7 +109,7 @@ export class ListOrderComponent implements OnInit, OnDestroy {
         this.orderService.deleteOrderById(String(orderId)).subscribe({
             next: () => {
                 this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'Order deleted', life: 3000 });
-                this.loadOrders(1, this.rows, this.searchQuery$.getValue());
+                this.loadOrders(1, this.rows, this.searchTerm); // Reload orders after deletion
             },
             error: (error) => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete order', life: 3000 });
@@ -113,13 +120,14 @@ export class ListOrderComponent implements OnInit, OnDestroy {
 
     onView(orderId: string | number) {
         console.log('View button clicked for order ID:', orderId);
+        // Implement view functionality if needed
     }
 
     onPageChange(event: any) {
         this.first = event.first;
         this.rows = event.rows;
-        const page = event.first / event.rows + 1;
-        this.loadOrders(page, event.rows, this.searchQuery$.getValue());
+        const page = event.first / event.rows + 1; // Calculate the current page
+        this.loadOrders(page, event.rows, this.searchTerm); // Load orders for the new page
     }
 
     navigateToCreateOrder() {

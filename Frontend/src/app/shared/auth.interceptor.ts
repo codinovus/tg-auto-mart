@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { HttpRequest, HttpHandler, HttpEvent, HttpInterceptor } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
+import { HttpRequest, HttpHandler, HttpEvent, HttpInterceptor, HttpErrorResponse } from '@angular/common/http';
+import { Observable, of, throwError } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 import { AuthService } from './auth.service';
 import { LoginService } from './login.service';
@@ -10,23 +10,36 @@ export class AuthInterceptor implements HttpInterceptor {
     constructor(private authService: AuthService, private loginService: LoginService) {}
 
     intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
+        console.log('AuthInterceptor: Processing request', request.url);
+
         const token = this.authService.getAccessToken();
         if (token) {
+            console.log('AuthInterceptor: Adding token to request');
             request = request.clone({
                 setHeaders: {
                     Authorization: `Bearer ${token}`
                 }
             });
+        } else {
+            console.log('AuthInterceptor: No token available');
         }
 
         return next.handle(request).pipe(
-            catchError((error) => {
+            catchError((error: HttpErrorResponse) => {
+                console.log(`AuthInterceptor: Error occurred - Status: ${error.status}`, error);
+
                 if (error.status === 401) {
-                    // Token might be expired, attempt to refresh
+                    console.log('AuthInterceptor: 401 Unauthorized - Attempting to refresh token');
+
                     return this.loginService.refreshToken().pipe(
                         switchMap((response: any) => {
+                            console.log('AuthInterceptor: Token refresh successful', response);
+
                             this.authService.setAccessToken(response.tokens.accessToken);
                             this.authService.setRefreshToken(response.tokens.refreshToken);
+
+                            console.log('AuthInterceptor: Retrying original request with new token');
+
                             request = request.clone({
                                 setHeaders: {
                                     Authorization: `Bearer ${response.tokens.accessToken}`
@@ -34,14 +47,21 @@ export class AuthInterceptor implements HttpInterceptor {
                             });
                             return next.handle(request);
                         }),
-                        catchError(() => {
+                        catchError((refreshError) => {
+                            console.log('AuthInterceptor: Token refresh failed', refreshError);
+                            console.log('AuthInterceptor: Logging out user due to authentication failure');
+
                             this.authService.clearTokens();
-                            // Redirect to login or handle logout
-                            return of(error);
+                            // You might want to redirect to login page here
+                            // this.router.navigate(['/auth/login']);
+
+                            return throwError(() => refreshError);
                         })
                     );
                 }
-                return of(error);
+
+                console.log('AuthInterceptor: Error is not 401, returning error', error);
+                return throwError(() => error);
             })
         );
     }

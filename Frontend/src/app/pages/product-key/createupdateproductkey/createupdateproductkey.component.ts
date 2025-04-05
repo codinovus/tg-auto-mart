@@ -30,7 +30,7 @@ import { MessageService } from '../../../shared/service/message.service';
     MessageModule
   ],
   templateUrl: './createupdateproductkey.component.html',
-  styleUrl: './createupdateproductkey.component.scss'
+  styleUrls: ['./createupdateproductkey.component.scss']
 })
 export class CreateupdateproductkeyComponent implements OnInit, OnDestroy {
   @Input() productKey?: ProductKeyResponseDto;
@@ -64,16 +64,30 @@ export class CreateupdateproductkeyComponent implements OnInit, OnDestroy {
   }
 
   private loadProducts(): void {
-    this.productService.getAllProducts()
+    this.loadAllProductsPages(1, []);
+  }
+
+  private loadAllProductsPages(page: number, accumulator: any[]): void {
+    this.loading = true;
+
+    this.productService.getAllProducts(page, 10) // Assuming your service method accepts page and limit
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          this.products = response.data.map(product => ({
-            label: product.name,
-            value: product.id
-          }));
+          const allData = [...accumulator, ...response.data];
+
+          if (response.data.length === 10) {
+            this.loadAllProductsPages(page + 1, allData);
+          } else {
+            this.products = allData.map(product => ({
+              label: product.name,
+              value: product.id
+            }));
+            this.loading = false;
+          }
         },
         error: (error: any) => {
+          this.loading = false;
           const errorMsg = error.error?.message || error.message || 'Failed to load products';
           this.messageService.showError('Error', errorMsg);
           console.error('Error loading products:', error);
@@ -107,7 +121,7 @@ export class CreateupdateproductkeyComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (response) => {
-          this. productKey = response;
+          this.productKey = response;
           this.isUpdateMode = true;
           this.initForm();
           this.messageService.showInfo('Product Key Data Loaded', 'Product key information has been successfully loaded.');

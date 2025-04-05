@@ -18,9 +18,9 @@
                     <input pInputText type="text" (input)="onSearch($event)" placeholder="Search keyword" class="w-full" />
                 </p-iconfield>
             </div>
-            <div class="w-full md:w-auto">
+            <!-- <div class="w-full md:w-auto">
                 <p-button label="Create Referral" icon="fas fa-plus" [raised]="true" severity="success" class="w-full" (click)="navigateToCreateReferral()" />
-            </div>
+            </div> -->
         </div>
     </div>
     <br />
@@ -39,9 +39,9 @@
                 <th style="min-width: 15rem">
                     <div class="flex items-center font-bold">Created At</div>
                 </th>
-                <th style="min-width: 10rem">
+                <!-- <th style="min-width: 10rem">
                     <div class="flex items-center font-bold">Actions</div>
-                </th>
+                </th> -->
             </tr>
         </ng-template>
         <ng-template #body let-referral>
@@ -58,13 +58,13 @@
                 <td>
                     {{ referral.createdAt | date:'shortDate' }}
                 </td>
-                <td>
+                <!-- <td>
                     <div class="flex gap-2">
                         <p-button icon="pi pi-pencil" (click)="onEdit(referral.id)" />
                         <p-button icon="pi pi-trash" (click)="confirmDelete($event, referral.id)" />
                         <p-button icon="pi pi-eye" (click)="onView(referral.id)" />
                     </div>
-                </td>
+                </td> -->
             </tr>
         </ng-template>
         <ng-template #emptymessage>

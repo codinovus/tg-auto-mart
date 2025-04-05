@@ -6,8 +6,8 @@ import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
-import { StoreService } from '../../../shared/service/store.service'; // Adjust the import path as necessary
-import { StoreResponseDto, GetAllStoresResponseDto } from '../model/store.dto'; // Adjust the import path as necessary
+import { StoreService } from '../../../shared/service/store.service';
+import { StoreResponseDto, GetAllStoresResponseDto } from '../model/store.dto';
 import { Router } from '@angular/router';
 import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -36,12 +36,12 @@ import { Subject, BehaviorSubject, debounceTime, takeUntil } from 'rxjs';
 })
 export class ListStoreComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
-    private searchQuery$ = new BehaviorSubject<string>(''); // BehaviorSubject for search input
+    private searchQuery$ = new BehaviorSubject<string>('');
     stores!: StoreResponseDto[];
     loading: boolean = true;
-    first: number = 0; // First row offset
-    rows: number = 10; // Number of rows per page
-    totalRecords: number = 0; // Total number of records
+    first: number = 0;
+    rows: number = 10;
+    totalRecords: number = 0;
 
     constructor(
         private storeService: StoreService,
@@ -52,20 +52,20 @@ export class ListStoreComponent implements OnInit, OnDestroy {
 
     ngOnInit() {
         this.loadStores();
-        this.setupSearchListener(); // Set up the search listener
+        this.setupSearchListener();
     }
 
     setupSearchListener() {
         this.searchQuery$
             .pipe(debounceTime(500), takeUntil(this.unsubscribe$))
             .subscribe(searchValue => {
-                this.loadStores(1, this.rows, searchValue); // Load stores with the search value
+                this.loadStores(1, this.rows, searchValue);
             });
     }
 
     loadStores(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.storeService.getAllStores(page, limit, search) // Pass the search parameter
+        this.storeService.getAllStores(page, limit, search)
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllStoresResponseDto) => {
                 this.stores = response.data;
@@ -80,7 +80,7 @@ export class ListStoreComponent implements OnInit, OnDestroy {
 
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value;
-        this.searchQuery$.next(searchValue); // Update the search query
+        this.searchQuery$.next(searchValue);
     }
 
     onEdit(storeId: string | number) {
@@ -114,8 +114,8 @@ export class ListStoreComponent implements OnInit, OnDestroy {
     onDelete(storeId: string | number) {
         this.storeService.deleteStore(String(storeId)).subscribe({
             next: () => {
-                this.messageService .add({ severity: 'info', summary: 'Confirmed', detail: 'Store deleted', life: 3000 });
-                this.loadStores(1, this.rows, this.searchQuery$.getValue()); // Reload stores after deletion
+                this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'Store deleted', life: 3000 });
+                this.loadStores(1, this.rows, this.searchQuery$.getValue());
             },
             error: (error) => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete store', life: 3000 });
@@ -126,14 +126,13 @@ export class ListStoreComponent implements OnInit, OnDestroy {
 
     onView(storeId: string | number) {
         console.log('View button clicked for store ID:', storeId);
-        // Implement view functionality if needed
     }
 
     onPageChange(event: any) {
         this.first = event.first;
         this.rows = event.rows;
-        const page = event.first / event.rows + 1; // Calculate page number
-        this.loadStores(page, event.rows, this.searchQuery$.getValue()); // Load stores for the new page
+        const page = event.first / event.rows + 1;
+        this.loadStores(page, event.rows, this.searchQuery$.getValue());
     }
 
     navigateToCreateStore() {

@@ -40,12 +40,20 @@ import {
         updatedAt: referral.updatedAt,
       };
     }
-  
     async getAllReferrals(
       page: number,
       limit: number,
       searchQuery?: string,
     ): Promise<GetAllReferralsResponseDto> {
+    
+      // Convert page and limit to integers
+      const pageNumber = parseInt(page as unknown as string, 10);
+      const limitNumber = parseInt(limit as unknown as string, 10);
+      if (pageNumber < 1 || limitNumber < 1) {
+        console.error('Invalid pagination parameters:', { page: pageNumber, limit: limitNumber });
+        throw new ConflictException('Page and limit must be positive integers');
+      }
+    
       const totalItems = await this.prisma.referral.count({
         where: {
           OR: [
@@ -54,7 +62,7 @@ import {
           ],
         },
       });
-  
+    
       const referrals = await this.prisma.referral.findMany({
         where: {
           OR: [
@@ -62,10 +70,9 @@ import {
             { referredUserId: { contains: searchQuery, mode: 'insensitive' } },
           ],
         },
-        skip: (page - 1) * limit,
-        take: limit,
+        skip: (pageNumber - 1) * limitNumber,
+        take: limitNumber,
       });
-  
       const referralResponseDtos: ReferralResponseDto[] = referrals.map((referral) => ({
         id: referral.id,
         referredById: referral.referredById,
@@ -74,13 +81,14 @@ import {
         createdAt: referral.createdAt,
         updatedAt: referral.updatedAt,
       }));
-  
-      const totalPages = Math.ceil(totalItems / limit);
+    
+      const totalPages = Math.ceil(totalItems / limitNumber);
+    
       return new GetAllReferralsResponseDto(
         true,
         'Referrals fetched successfully',
         referralResponseDtos,
-        { totalItems, totalPages, currentPage: page, perPage: limit },
+        { totalItems, totalPages, currentPage: pageNumber, perPage: limitNumber },
       );
     }
   

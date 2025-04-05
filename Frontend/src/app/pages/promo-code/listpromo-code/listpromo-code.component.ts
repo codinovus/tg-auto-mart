@@ -6,8 +6,8 @@ import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
-import { PromoCodeService } from '../../../shared/service/promo-code.service'; // Adjust the import path as necessary
-import { PromoCodeResponseDto, GetAllPromoCodesResponseDto } from '../model/promo-code.dto'; // Adjust the import path as necessary
+import { PromoCodeService } from '../../../shared/service/promo-code.service';
+import { PromoCodeResponseDto, GetAllPromoCodesResponseDto } from '../model/promo-code.dto';
 import { Router } from '@angular/router';
 import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -38,12 +38,12 @@ import { TagModule } from 'primeng/tag';
 })
 export class ListPromoCodeComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
-    private searchQuery$ = new BehaviorSubject<string>(''); // BehaviorSubject for search input
+    private searchQuery$ = new BehaviorSubject<string>('');
     promoCodes!: PromoCodeResponseDto[];
     loading: boolean = true;
-    first: number = 0; // First row offset
-    rows: number = 10; // Number of rows per page
-    totalRecords: number = 0; // Total number of records
+    first: number = 0;
+    rows: number = 10;
+    totalRecords: number = 0;
 
     constructor(
         private promoCodeService: PromoCodeService,
@@ -54,20 +54,20 @@ export class ListPromoCodeComponent implements OnInit, OnDestroy {
 
     ngOnInit() {
         this.loadPromoCodes();
-        this.setupSearchListener(); // Set up the search listener
+        this.setupSearchListener();
     }
 
     setupSearchListener() {
         this.searchQuery$
             .pipe(debounceTime(500), takeUntil(this.unsubscribe$))
             .subscribe(searchValue => {
-                this.loadPromoCodes(1, this.rows, searchValue); // Load promo codes with the search value
+                this.loadPromoCodes(1, this.rows, searchValue);
             });
     }
 
     loadPromoCodes(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.promoCodeService.getAllPromoCodes(page, limit, search) // Pass the search parameter
+        this.promoCodeService.getAllPromoCodes(page, limit, search)
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllPromoCodesResponseDto) => {
                 this.promoCodes = response.data;
@@ -82,7 +82,7 @@ export class ListPromoCodeComponent implements OnInit, OnDestroy {
 
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value;
-        this.searchQuery$.next(searchValue); // Update the search query
+        this.searchQuery$.next(searchValue);
     }
 
     onEdit(promoCodeId: string | number) {
@@ -117,7 +117,7 @@ export class ListPromoCodeComponent implements OnInit, OnDestroy {
         this.promoCodeService.deletePromoCodeById(String(promoCodeId)).subscribe({
             next: () => {
                 this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'Promo code deleted', life: 3000 });
-                this.loadPromoCodes(1, this.rows, this.searchQuery$.getValue()); // Reload promo codes after deletion
+                this.loadPromoCodes(1, this.rows, this.searchQuery$.getValue());
             },
             error: (error) => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete promo code', life: 3000 });
@@ -128,14 +128,13 @@ export class ListPromoCodeComponent implements OnInit, OnDestroy {
 
     onView(promoCodeId: string | number) {
         console.log('View button clicked for promo code ID:', promoCodeId);
-        // Implement view functionality if needed
     }
 
     onPageChange(event: any) {
         this.first = event.first;
         this.rows = event.rows;
-        const page = event.first / event.rows + 1; // Calculate page number
-        this.loadPromoCodes(page, event.rows, this.searchQuery$.getValue()); // Load promo codes for the new page
+        const page = event.first / event.rows + 1;
+        this.loadPromoCodes(page, event.rows, this.searchQuery$.getValue());
     }
 
     navigateToCreatePromoCode() {

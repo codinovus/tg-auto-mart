@@ -20,20 +20,20 @@ import { RolesGuard } from 'src/shared/auth/roles.guard';
 import { Roles } from 'src/shared/auth/roles.decorator';
 
 @Controller('wallet')
-@UseGuards(JwtAuthGuard) // Protect all routes with JWT authentication
+@UseGuards(JwtAuthGuard)
 export class WalletController {
   constructor(private readonly walletService: WalletService) {}
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles('USER', 'ADMIN') // Allow USER and ADMIN to create wallets
+  @Roles('STORE_ADMIN', 'DEVELOPER')
   async createWallet(@Body() createWalletDto: CreateWalletDto) {
       return this.walletService.createWallet(createWalletDto);
   }
 
   @Put(':id')
   @UseGuards(RolesGuard)
-  @Roles('USER', 'ADMIN') // Allow USER and ADMIN to update wallets
+  @Roles('STORE_ADMIN', 'DEVELOPER')
   async updateWalletById(
       @Param('id') walletId: string,
       @Body() updateWalletDto: UpdateWalletDto,
@@ -43,21 +43,21 @@ export class WalletController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN') // Only allow ADMIN to delete wallets
+  @Roles('STORE_ADMIN', 'DEVELOPER')
   async deleteWallet(@Param('id') walletId: string) {
       return this.walletService.deleteWalletById(walletId);
   }
 
   @Get(':id')
   @UseGuards(RolesGuard)
-  @Roles('USER', 'ADMIN') // Allow USER and ADMIN to get wallet by ID
+  @Roles('STORE_ADMIN', 'DEVELOPER')
   async getWalletById(@Param('id') walletId: string) {
       return this.walletService.getWalletById(walletId);
   }
 
   @Get()
   @UseGuards(RolesGuard)
-  @Roles('ADMIN') // Only allow ADMIN to get all wallets
+  @Roles('STORE_ADMIN', 'DEVELOPER')
   async getAllWallets(
       @Query('page', new DefaultValuePipe('1')) page: string,
       @Query('limit', new DefaultValuePipe('10')) limit: string,
@@ -68,21 +68,21 @@ export class WalletController {
 
   @Get('user/:userId')
   @UseGuards(RolesGuard)
-  @Roles('USER', 'ADMIN') // Allow USER and ADMIN to get wallet by user ID
+  @Roles('STORE_ADMIN', 'DEVELOPER')
   async getWalletByUserId(@Param('userId') userId: string) {
       return this.walletService.getWalletByUserId(userId);
   }
 
   @Get('telegram/:telegramId')
   @UseGuards(RolesGuard)
-  @Roles('USER', 'ADMIN') // Allow USER and ADMIN to get wallet by Telegram ID
+  @Roles('STORE_ADMIN', 'DEVELOPER')
   async getWalletByTelegramId(@Param('telegramId') telegramId: string) {
       return this.walletService.getWalletByTelegramId(telegramId);
   }
 
   @Put('telegram/:telegramId')
   @UseGuards(RolesGuard)
-  @Roles('USER', 'ADMIN') // Allow USER and ADMIN to update wallet by Telegram ID
+  @Roles('STORE_ADMIN', 'DEVELOPER')
   async updateWalletByTelegramId(
       @Param('telegramId') telegramId: string,
       @Body() updateWalletDto: UpdateWalletDto,

@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { Router } from '@angular/router';
 
 @Injectable({
     providedIn: 'root'
@@ -7,7 +8,7 @@ export class AuthService {
     private accessToken: string | null = null;
     private refreshToken: string | null = null;
 
-    constructor() {}
+    constructor(private router: Router) {}
 
     setAccessToken(token: string) {
         this.accessToken = token;
@@ -36,5 +37,12 @@ export class AuthService {
         this.refreshToken = null;
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
+    }
+
+    logout() {
+        this.clearTokens();
+        localStorage.removeItem('userData');
+        sessionStorage.clear();
+        this.router.navigate(['/auth/login']);
     }
 }

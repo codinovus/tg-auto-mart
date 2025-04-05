@@ -18,9 +18,9 @@
                     <input pInputText type="text" (input)="onSearch($event)" placeholder="Search keyword" class="w-full " />
                 </p-iconfield>
             </div>
-            <div class="w-full md:w-auto">
+            <!-- <div class="w-full md:w-auto">
                 <p-button label="Create Deposit Request" icon="fas fa-plus" [raised]="true" severity="success" class="w-full" (click)="navigateToCreateDepositRequest()" />
-            </div>
+            </div> -->
         </div>
     </div>
     <br />
@@ -39,9 +39,9 @@
                 <th style="min-width: 10rem">
                     <div class="flex items-center font-bold">Status</div>
                 </th>
-                <th style="min-width: 10rem">
+                <!-- <th style="min-width: 10rem">
                     <div class="flex items-center font-bold">Actions</div>
-                </th>
+                </th> -->
             </tr>
         </ng-template>
         <ng-template #body let-request>
@@ -58,13 +58,13 @@
                 <td>
                     {{ request.status }}
                 </td>
-                <td>
+                <!-- <td>
                     <div class="flex gap-2">
                         <p-button icon="pi pi-pencil" (click)="onEdit(request.id)" />
                         <p-button icon="pi pi-trash" (click)="confirmDelete($event, request.id)" />
                         <p-button icon="pi pi-eye" (click)="onView(request.id)" />
                     </div>
-                </td>
+                </td> -->
             </tr>
         </ng-template>
         <ng-template #emptymessage>

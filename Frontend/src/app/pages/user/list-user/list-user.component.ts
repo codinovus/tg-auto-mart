@@ -1,5 +1,4 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Table } from 'primeng/table';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { TableModule } from 'primeng/table';
@@ -16,12 +15,12 @@ import { BadgeModule } from 'primeng/badge';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { BehaviorSubject, debounceTime, Subject, takeUntil } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-user',
     templateUrl: './list-user.component.html',
-    styleUrl: './list-user.component.scss',
+    styleUrls: ['./list-user.component.scss'],
     standalone: true,
     imports: [
         TableModule,
@@ -41,7 +40,7 @@ import { BehaviorSubject, debounceTime, Subject, takeUntil } from 'rxjs';
 })
 export class ListUserComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
-    private searchQuery$ = new BehaviorSubject<string>('');
+    private searchSubject = new Subject<string>();
     users!: UserResponseDto[];
     loading: boolean = true;
     roles = [
@@ -49,9 +48,10 @@ export class ListUserComponent implements OnInit, OnDestroy {
         { label: 'STORE_ADMIN', value: 'STORE_ADMIN' },
         { label: 'DEVELOPER', value: 'DEVELOPER' }
     ];
-    first: number = 0; // First row offset
-    rows: number = 10; // Number of rows per page
-    totalRecords: number = 0; // Total number of records
+    first: number = 0;
+    rows: number = 10;
+    totalRecords: number = 0;
+    searchTerm: string = '';
 
     constructor(
         private userService: UserService,
@@ -61,21 +61,21 @@ export class ListUserComponent implements OnInit, OnDestroy {
     ) {}
 
     ngOnInit() {
-        this.loadUsers();
-        this.setupSearchListener();
-    }
+        this.loadUsers(); // Load users only once on initialization
 
-    setupSearchListener() {
-        this.searchQuery$
-            .pipe(debounceTime(500), takeUntil(this.unsubscribe$))
-            .subscribe(searchValue => {
-                this.loadUsers(1, this.rows, searchValue);
-            });
+        this.searchSubject.pipe(
+            debounceTime(500),
+            distinctUntilChanged(),
+            takeUntil(this.unsubscribe$)
+        ).subscribe(searchValue => {
+            this.searchTerm = searchValue;
+            this.loadUsers(1, this.rows, searchValue); // Load users based on search input
+        });
     }
 
     loadUsers(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.userService.getAllUsers(page, limit, search) // Pass the search parameter
+        this.userService.getAllUsers(page, limit, search)
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllUsersResponseDto) => {
                 this.users = response.data;
@@ -89,8 +89,8 @@ export class ListUserComponent implements OnInit, OnDestroy {
     }
 
     onSearch(event: Event) {
-        const searchValue = (event.target as HTMLInputElement).value;
-        this.searchQuery$.next(searchValue); // Update the search query
+        const searchValue = (event.target as HTMLInputElement).value.trim();
+        this.searchSubject.next(searchValue); // Trigger search
     }
 
     getSeverity(role: string) {
@@ -98,7 +98,7 @@ export class ListUserComponent implements OnInit, OnDestroy {
             case 'CUSTOMER':
                 return 'success';
             case 'STORE_ADMIN':
-                return 'warn'; // Changed from 'warning' to 'warn'
+                return 'warn';
             case 'DEVELOPER':
                 return 'danger';
             default:
@@ -135,10 +135,10 @@ export class ListUserComponent implements OnInit, OnDestroy {
     }
 
     onDelete(userId: string | number) {
-        this.userService.deleteUser(String(userId)).subscribe({
+        this.userService.deleteUser (String(userId)).subscribe({
             next: () => {
-                this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'User deleted', life: 3000 });
-                this.loadUsers(); // Reload users after deletion
+                this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'User  deleted', life: 3000 });
+                this.loadUsers(1, this.rows, this.searchTerm); // Reload users after deletion
             },
             error: (error) => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete user', life: 3000 });
@@ -154,8 +154,8 @@ export class ListUserComponent implements OnInit, OnDestroy {
     onPageChange(event: any) {
         this.first = event.first;
         this.rows = event.rows;
-        const page = event.first / event.rows + 1; // Calculate page number
-        this.loadUsers(page, event.rows); // Load users for the new page
+        const page = event.first / event.rows + 1; // Calculate the current page
+        this.loadUsers(page, event.rows, this.searchTerm); // Load users for the new page
     }
 
     navigateToCreateUser () {

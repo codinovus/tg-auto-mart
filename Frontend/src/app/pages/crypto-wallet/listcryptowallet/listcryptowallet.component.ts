@@ -53,14 +53,17 @@ export class ListCryptowalletComponent implements OnInit, OnDestroy {
     ) {}
 
     ngOnInit() {
+        // Load wallets only once on initialization
         this.loadWallets();
+
+        // Subscribe to search input changes
         this.searchSubject.pipe(
             debounceTime(500),
             distinctUntilChanged(),
             takeUntil(this.unsubscribe$)
         ).subscribe(searchValue => {
             this.searchTerm = searchValue;
-            this.loadWallets(1, this.rows, searchValue);
+            this.loadWallets(1, this.rows, searchValue); // Load wallets based on search
         });
     }
 
@@ -85,7 +88,7 @@ export class ListCryptowalletComponent implements OnInit, OnDestroy {
     onSearch(event: Event) {
         const searchValue = (event.target as HTMLInputElement).value.trim();
         if (searchValue !== this.searchTerm) {
-            this.searchSubject.next(searchValue);
+            this.searchSubject.next(searchValue); // Trigger search
         }
     }
 
@@ -112,7 +115,7 @@ export class ListCryptowalletComponent implements OnInit, OnDestroy {
         this.walletService.deleteCryptoWalletById(String(walletId)).subscribe({
             next: () => {
                 this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'Wallet deleted', life: 3000 });
-                this.loadWallets();
+                this.loadWallets(); // Reload wallets after deletion
             },
             error: (error) => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete wallet', life: 3000 });
@@ -123,13 +126,14 @@ export class ListCryptowalletComponent implements OnInit, OnDestroy {
 
     onView(walletId: string | number) {
         console.log('View button clicked for wallet ID:', walletId);
+        // Implement view logic if needed
     }
 
     onPageChange(event: any) {
         this.first = event.first;
         this.rows = event.rows;
-        const page = event.first / event.rows + 1;
-        this.loadWallets(page, event.rows, this.searchTerm);
+        const page = event.first / event.rows + 1; // Calculate the current page
+        this.loadWallets(page, event.rows, this.searchTerm); // Load wallets for the new page
     }
 
     navigateToCreateWallet() {

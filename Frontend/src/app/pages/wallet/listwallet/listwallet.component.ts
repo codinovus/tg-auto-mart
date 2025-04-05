@@ -1,5 +1,4 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Table } from 'primeng/table';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { TableModule } from 'primeng/table';
@@ -7,14 +6,14 @@ import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
-import { WalletService } from '../../../shared/service/wallet.service'; // Adjust the import path as necessary
-import { WalletResponseDto, GetAllWalletsResponseDto } from '../model/wallet.dto'; // Adjust the import path as necessary
+import { WalletService } from '../../../shared/service/wallet.service';
+import { WalletResponseDto, GetAllWalletsResponseDto } from '../model/wallet.dto';
 import { Router } from '@angular/router';
 import { PaginatorModule } from 'primeng/paginator';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
-import { BehaviorSubject, debounceTime, Subject, takeUntil } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-list-wallet',
@@ -37,12 +36,13 @@ import { BehaviorSubject, debounceTime, Subject, takeUntil } from 'rxjs';
 })
 export class ListWalletComponent implements OnInit, OnDestroy {
     private unsubscribe$ = new Subject<void>();
-    private searchQuery$ = new BehaviorSubject<string>('');
+    private searchSubject = new Subject<string>();
     wallets!: WalletResponseDto[];
     loading: boolean = true;
-    first: number = 0; // First row offset
-    rows: number = 10; // Number of rows per page
-    totalRecords: number = 0; // Total number of records
+    first: number = 0;
+    rows: number = 10;
+    totalRecords: number = 0;
+    searchTerm: string = '';
 
     constructor(
         private walletService: WalletService,
@@ -52,21 +52,21 @@ export class ListWalletComponent implements OnInit, OnDestroy {
     ) {}
 
     ngOnInit() {
-        this.loadWallets();
-        this.setupSearchListener();
-    }
+        this.loadWallets(); // Load wallets only once on initialization
 
-    setupSearchListener() {
-        this.searchQuery$
-            .pipe(debounceTime(500), takeUntil(this.unsubscribe$))
-            .subscribe(searchValue => {
-                this.loadWallets(1, this.rows, searchValue); // Load wallets with the search value
-            });
+        this.searchSubject.pipe(
+            debounceTime(500),
+            distinctUntilChanged(),
+            takeUntil(this.unsubscribe$)
+        ).subscribe(searchValue => {
+            this.searchTerm = searchValue;
+            this.loadWallets(1, this.rows, searchValue); // Load wallets based on search input
+        });
     }
 
     loadWallets(page: number = 1, limit: number = this.rows, search: string = '') {
         this.loading = true;
-        this.walletService.getAllWallets(page, limit, search) // Pass the search parameter
+        this.walletService.getAllWallets(page, limit, search)
             .pipe(takeUntil(this.unsubscribe$))
             .subscribe((response: GetAllWalletsResponseDto) => {
                 this.wallets = response.data;
@@ -80,8 +80,8 @@ export class ListWalletComponent implements OnInit, OnDestroy {
     }
 
     onSearch(event: Event) {
-        const searchValue = (event.target as HTMLInputElement).value;
-        this.searchQuery$.next(searchValue);
+        const searchValue = (event.target as HTMLInputElement).value.trim();
+        this.searchSubject.next(searchValue); // Trigger search
     }
 
     onEdit(walletId: string | number) {
@@ -111,12 +111,11 @@ export class ListWalletComponent implements OnInit, OnDestroy {
             }
         });
     }
-
     onDelete(walletId: string | number) {
         this.walletService.deleteWalletById(String(walletId)).subscribe({
             next: () => {
                 this.messageService.add({ severity: 'info', summary: 'Confirmed', detail: 'Wallet deleted', life: 3000 });
-                this.loadWallets(); // Reload wallets after deletion
+                this.loadWallets(1, this.rows, this.searchTerm); // Reload wallets after deletion
             },
             error: (error) => {
                 this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete wallet', life: 3000 });
@@ -133,8 +132,8 @@ export class ListWalletComponent implements OnInit, OnDestroy {
     onPageChange(event: any) {
         this.first = event.first;
         this.rows = event.rows;
-        const page = event.first / event.rows + 1; // Calculate page number
-        this.loadWallets(page, event.rows); // Load wallets for the new page
+        const page = event.first / event.rows + 1; // Calculate the current page
+        this.loadWallets(page, event.rows, this.searchTerm); // Load wallets for the new page
     }
 
     navigateToCreateWallet() {

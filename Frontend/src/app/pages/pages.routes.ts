@@ -54,5 +54,9 @@ export default [
         path: 'refral',
         loadChildren: () => import('./referral/referral.routes').then(m => m.referralRoutes)
     },
+    {
+        path: 'transaction',
+        loadChildren: () => import('./transaction/transaction.routes').then(m => m.transactionRoutes)
+    },
     { path: '**', redirectTo: '/notfound' }
 ] as Routes;
