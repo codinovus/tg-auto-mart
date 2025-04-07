@@ -2,6 +2,7 @@ import {
     Injectable,
     BadRequestException,
     NotFoundException,
+    Logger
   } from '@nestjs/common';
   import axios from 'axios';
   import { config } from 'dotenv';
@@ -20,12 +21,13 @@ import {
     private readonly cancelUrl: string;
     private readonly updateAdmin: boolean;
     private readonly telegramBotToken: string;
+    private readonly logger = new Logger(PaymentGatewayService.name);
   
     constructor(private readonly prisma: PrismaService) {
       this.oxapayMerchantKey = process.env.OXAPAY_MERCHANT_API || "SANDBOX";
       this.oxapayBaseUrl = process.env.OXAPAY_BASE_URL || 'https://api.oxapay.com/merchants/request';
-      this.ipnCallbackUrl = process.env.IPN_CALLBACK_URL || 'http://localhost:3000/payment-gateway/ipn-callback';
-      this.successUrl = process.env.SUCCESS_URL || 'http://localhost:3000/success';
+      this.ipnCallbackUrl = process.env.IPN_CALLBACK_URL || 'https://api.ecomtgbot.tech/payment-gateway/ipn-callback';
+      this.successUrl = process.env.CANCEL_URL || 'http://localhost:3000/success';
       this.cancelUrl = process.env.CANCEL_URL || 'http://localhost:3000/cancel';
       this.updateAdmin = process.env.UPDATE_ADMIN === 'false';
       this.telegramBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -38,7 +40,8 @@ import {
           throw new BadRequestException('userId and amount are required');
         }
       
-        return await this.prisma.$transaction(async (prisma) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+        return await this.prisma.$transaction(async (prisma: { depositRequest: { create: (arg0: { data: { userId: string; amount: number; status: any; }; }) => any; update: (arg0: { where: { id: any; }; data: { paymentLink: any; }; }) => any; findUnique: (arg0: { where: { id: any; }; include: { Transaction: boolean; }; }) => any; }; gatewayTransaction: { create: (arg0: { data: { depositRequestId: any; amount: number; status: any; }; }) => any; }; }) => {
           const depositRequest = await prisma.depositRequest.create({
             data: {
               userId,
@@ -83,105 +86,141 @@ import {
         });
       }
   
-    async createInvoice(
-      amount: number,
-      currency: string,
-      orderId: string,
-      orderDescription: string,
-      ipnCallbackUrl: string,
-      successUrl: string,
-      cancelUrl: string,
-    ): Promise<any> {
-      if (!amount || !currency || !orderId || !orderDescription) {
-        throw new BadRequestException('All parameters are required to create an invoice.');
+      async createInvoice(
+        amount: number,
+        currency: string,
+        orderId: string,
+        orderDescription: string,
+        ipnCallbackUrl: string,
+        successUrl: string,
+        cancelUrl: string,
+      ): Promise<any> {
+        if (!amount || !currency || !orderId || !orderDescription) {
+          throw new BadRequestException('All parameters are required to create an invoice.');
+        }
+      
+        const requestData = {
+          merchant: this.oxapayMerchantKey,
+          amount,
+          currency,
+          lifeTime: 60,
+          feePaidByPayer: 1,
+          underPaidCover: 1,
+          callbackUrl: ipnCallbackUrl,
+          returnUrl: successUrl,
+          cancelUrl: cancelUrl,
+          description: orderDescription,
+          orderId,
+        };
+      
+        try {
+          this.logger.log(`Creating invoice with data: ${JSON.stringify(requestData)}`);
+          const response = await axios.post(this.oxapayBaseUrl, requestData, {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          // Log the API response
+          this.logger.log(`Invoice created successfully. Response: ${JSON.stringify(response.data)}`);
+          
+          return response.data;
+        } catch (error) {
+          this.logger.error(`Failed to create invoice: ${error.message}`);
+          throw new BadRequestException('Failed to create invoice: ' + error.message);
+        }
       }
   
-      const requestData = {
-        merchant: this.oxapayMerchantKey,
-        amount,
-        currency,
-        lifeTime: 60,
-        feePaidByPayer: 1,
-        underPaidCover: 1,
-        callbackUrl: ipnCallbackUrl,
-        returnUrl: successUrl,
-        cancelUrl: cancelUrl,
-        description: orderDescription,
-        orderId,
-      };
-  
-      try {
-        const response = await axios.post(this.oxapayBaseUrl, requestData, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
+      async handleWebhook(data: any): Promise<void> {
+        this.logger.log(`Webhook received: ${JSON.stringify(data)}`);
+        // await this.notifyAdminAboutWebhook(data);
+      
+        const { type, status, orderId } = data;
+      
+        if (type !== 'payment') {
+          this.logger.error('Invalid data type received in webhook');
+          throw new BadRequestException('Invalid data type');
+        }
+      
+        this.logger.log(`Looking for deposit request with orderId: ${orderId}`);
+        
+        // Use orderId instead of trackId to find the deposit request
+        const depositRequest = await this.prisma.depositRequest.findUnique({
+          where: { id: orderId },
+          include: { user: true },
         });
-        return response.data;
-      } catch (error) {
-        throw new BadRequestException('Failed to create invoice: ' + error.message);
-      }
-    }
-  
-    async handleWebhook(data: any): Promise<void> {
-      const { type, status, trackId } = data;
-  
-      if (type !== 'payment') {
-        throw new BadRequestException('Invalid data type');
-      }
-  
-      const depositRequest = await this.prisma.depositRequest.findUnique({
-        where: { id: trackId },
-        include: { user: true },
-      });
-  
-      if (!depositRequest) {
-        throw new NotFoundException(`Deposit request with ID ${trackId} not found`);
-      }
-  
-      const user = depositRequest.user;
-  
-      if (status === 'Paid') {
-        await this.prisma.$transaction(async (prisma) => {
-          await prisma.depositRequest.update({
-            where : { id: trackId },
-            data: { status: PaymentStatus.SUCCESS },
-          });
-  
-          await prisma.gatewayTransaction.updateMany({
-            where: { depositRequestId: trackId },
-            data: { status: PaymentStatus.SUCCESS },
-          });
-  
-          const wallet = await prisma.wallet.findUnique({
-            where: { userId: user.id },
-          });
-  
-          if (!wallet) {
-            throw new NotFoundException(`Wallet for user ID ${user.id} not found`);
-          }
-  
-          await prisma.wallet.update({
-            where: { userId: user.id },
-            data: {
-              balance: {
-                increment: depositRequest.amount,
+      
+        if (!depositRequest) {
+          this.logger.error(`Deposit request with ID ${orderId} not found`);
+          throw new NotFoundException(`Deposit request with ID ${orderId} not found`);
+        }
+      
+        this.logger.log(`Found deposit request: ${JSON.stringify(depositRequest)}`);
+        const user = depositRequest.user;
+      
+        if (status === 'Paid') {
+          this.logger.log(`Processing successful payment for deposit ID: ${orderId}`);
+          
+          await this.prisma.$transaction(async (prisma) => {
+            this.logger.log(`Updating deposit request status to SUCCESS for ID: ${orderId}`);
+            await prisma.depositRequest.update({
+              where: { id: orderId },
+              data: { status: PaymentStatus.SUCCESS },
+            });
+      
+            this.logger.log(`Updating gateway transactions for deposit ID: ${orderId}`);
+            await prisma.gatewayTransaction.updateMany({
+              where: { depositRequestId: orderId },
+              data: { status: PaymentStatus.SUCCESS },
+            });
+      
+            this.logger.log(`Looking for wallet for user ID: ${user.id}`);
+            const wallet = await prisma.wallet.findUnique({
+              where: { userId: user.id },
+            });
+      
+            if (!wallet) {
+              this.logger.error(`Wallet for user ID ${user.id} not found`);
+              throw new NotFoundException(`Wallet for user ID ${user.id} not found`);
+            }
+      
+            this.logger.log(`Updating wallet balance for user ${user.id} by adding ${depositRequest.amount}`);
+            await prisma.wallet.update({
+              where: { userId: user.id },
+              data: {
+                balance: {
+                  increment: depositRequest.amount,
+                },
               },
-            },
+            });
+      
+            this.logger.log(`Creating transaction record for user ${user.id} with amount ${depositRequest.amount}`);
+            await prisma.transaction.create({
+              data: {
+                walletId: wallet.id,
+                userId: user.id,
+                amount: depositRequest.amount,
+                type: TransactionType.DEPOSIT,
+                status: PaymentStatus.SUCCESS,
+                depositRequestId: depositRequest.id,
+              },
+            });
+      
+            this.logger.log(`Payment processing completed successfully for deposit ID: ${orderId}`);
           });
-  
-          await prisma.transaction.create({
-            data: {
-              walletId: wallet.id,
-              userId: user.id,
-              amount: depositRequest.amount,
-              type: TransactionType.DEPOSIT,
-              status: PaymentStatus.SUCCESS,
-              depositRequestId: depositRequest.id,
-            },
-          });
+        } else {
+          this.logger.log(`Payment not successful, status: ${status}. Not processing balance update.`);
+          await this.notifyAdmin(data);
+        }
+      }
+
+    private async notifyAdminAboutWebhook(data: any): Promise<void> {
+      if (this.telegramBotToken) {
+        const message = `Webhook hit:\nReceived Data: ${JSON.stringify(data, null, 2)}`;
+        await axios.post(`https://api.telegram.org/bot${this.telegramBotToken}/sendMessage`, {
+          chat_id: process.env.TELEGRAM_CHAT_ID,
+          text: message,
         });
-      } else {
-        await this.notifyAdmin(data);
       }
     }
   
