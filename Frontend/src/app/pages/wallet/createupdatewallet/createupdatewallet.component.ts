@@ -146,7 +146,7 @@ export class CreateupdatewalletComponent implements OnInit, OnDestroy {
         .subscribe({
           next: (response: any) => {
             this.messageService.showSuccess('Success', 'Wallet updated successfully!');
-            this.router.navigate(['/wallets']);
+            // this.router.navigate(['/wallets']);
           },
           error: (error: any) => {
             const errorMsg = error.error?.message || error.message || 'Failed to update wallet';

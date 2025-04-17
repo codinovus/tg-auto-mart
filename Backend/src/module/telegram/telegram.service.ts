@@ -64,8 +64,11 @@ export class TelegramService implements OnModuleInit {
   private readonly logger = new Logger(TelegramService.name);
 
   // Message tracking
-  private readonly messageTracker = new Map<number, number>();
-
+  private readonly messageTracker = new Map<number, {
+    messageId: number,
+    context: string,
+    timestamp: number
+  }>();
   // User state tracking with timeouts
   private readonly usersInReferralProcess = new Map<
     number,
@@ -304,17 +307,33 @@ export class TelegramService implements OnModuleInit {
     }
   }
 
-  private async deletePreviousMessage(chatId: number) {
-    if (this.messageTracker.has(chatId)) {
-      const previousMessageId = this.messageTracker.get(chatId);
-      try {
-        await this.bot.deleteMessage(chatId, previousMessageId);
-      } catch (error) {
-        this.logger.warn(
-          `Failed to delete message ${previousMessageId} in chat ${chatId}: ${error.message}`,
-        );
+  private async deletePreviousMessage(chatId: number, context?: string): Promise<boolean> {
+    try {
+      const trackedMessage = this.messageTracker.get(chatId);
+      
+      // Only delete if context matches or no context provided
+      if (trackedMessage && (!context || trackedMessage.context === context)) {
+        await this.bot.deleteMessage(chatId, trackedMessage.messageId);
+        if (!context) {
+          this.messageTracker.delete(chatId);
+        }
+        return true;
       }
+      return false;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to delete message in chat ${chatId}: ${error.message}`
+      );
+      return false;
     }
+  }
+
+  private trackMessage(chatId: number, messageId: number, context: string): void {
+    this.messageTracker.set(chatId, {
+      messageId,
+      context,
+      timestamp: Date.now()
+    });
   }
 
   private async sendMessage(
@@ -533,7 +552,6 @@ export class TelegramService implements OnModuleInit {
 
   private async handleShop(msg: TelegramBot.Message) {
     const chatId = msg.chat.id;
-    this.messageTracker.set(chatId, 1);
     await this.sendProductCategories(chatId, 1);
   }
 
@@ -583,91 +601,105 @@ export class TelegramService implements OnModuleInit {
     const chatId = query.message.chat.id;
     const telegramId = query.from.id.toString();
     const data = query.data;
-
+  
     if (!this.isValidCallback(data)) {
       return this.bot.answerCallbackQuery(query.id, { text: 'Invalid action' });
     }
-
+  
     try {
       if (data.startsWith('add_balance_')) {
         this.handleAddBalance(chatId);
         return;
       }
-
+  
       if (data.startsWith('my_wallets_')) {
         const page = parseInt(data.split('_')[2], 10);
         await this.sendUserWallets(chatId, telegramId, page);
         return;
       }
-
+  
       if (data.startsWith('add_wallet_')) {
         await this.askWalletType(chatId, telegramId);
         return;
       }
-
+  
       if (data.startsWith('wallet_type_')) {
         const type = data.split('_')[2] as CryptoType;
         await this.handleWalletAddressInput(chatId, telegramId, type);
         return;
       }
-
+  
       if (data.startsWith('product_') && !data.includes('page')) {
         await this.handleProductDetails(query);
         return;
       }
-
+  
       if (data.startsWith('back_to_products_')) {
         await this.handleBackToProducts(query);
         return;
       }
-
+  
       if (data.startsWith('back_to_categories')) {
-        await this.handleBackToCategories(chatId);
+        await this.handleBackToCategories(query);
         return;
       }
-
+  
       if (data.startsWith('buy_')) {
         await this.handleBuyProductCallback(query);
         return;
       }
-
+  
       if (data.startsWith('get_referral_')) {
         await this.sendReferralCode(chatId, telegramId);
         return;
       }
-
+  
       if (data.startsWith('my_referrals_')) {
         const page = parseInt(data.split('_')[2], 10) || 1;
         await this.sendUserReferrals(chatId, telegramId, page);
         return;
       }
-
+  
       if (data.startsWith('referral_yes_') || data.startsWith('referral_no_')) {
         await this.handleReferralResponse(query);
         return;
       }
-
+  
       if (data.startsWith('category_')) {
         const categoryId = data.split('_')[1];
         await this.sendProductsByCategory(chatId, categoryId, 1);
         return;
       }
-
+  
       if (data.startsWith('categories_')) {
         const page = parseInt(data.split('_')[1], 10);
         await this.sendProductCategories(chatId, page);
         return;
       }
-
+  
       if (data.startsWith('product_page_')) {
-        const [_, categoryId, direction] = data.split('_');
-        let currentPage = this.messageTracker.get(chatId) || 1;
-        currentPage =
-          direction === 'next' ? currentPage + 1 : Math.max(1, currentPage - 1);
+        const parts = data.split('_');
+        const categoryId = parts[2];
+        const direction = parts[3];
+        
+        // We need to store the current page in the context for pagination
+        const trackedMessage = this.messageTracker.get(chatId);
+        // Extract page from context or default to 1
+        let currentPage = 1;
+        
+        if (trackedMessage && trackedMessage.context === 'products') {
+          // We can store the page in the context string like "products:2"
+          const contextParts = trackedMessage.context.split(':');
+          if (contextParts.length > 1) {
+            currentPage = parseInt(contextParts[1], 10) || 1;
+          }
+        }
+        
+        currentPage = direction === 'next' ? currentPage + 1 : Math.max(1, currentPage - 1);
         await this.sendProductsByCategory(chatId, categoryId, currentPage);
         return;
       }
-
+  
       this.bot.answerCallbackQuery(query.id);
     } catch (error) {
       this.logger.error('Error handling callback query:', error);
@@ -770,6 +802,9 @@ export class TelegramService implements OnModuleInit {
       const message = `
             📦 *Product Name:* 
             ${product.name}
+
+            📦 *Product Description:* 
+            ${product?.description}
 
             💲 *Price:* $${product.price.toFixed(2)} 
 
@@ -909,12 +944,11 @@ export class TelegramService implements OnModuleInit {
 
   private async sendProductCategories(chatId: number, page: number) {
     try {
-      const response =
-        await this.productCategoryService.getAllProductCategories(page, 5);
+      const response = await this.productCategoryService.getAllProductCategories(page, 5);
       if (!response.data.length) {
         return this.bot.sendMessage(chatId, '❌ No categories available.');
       }
-
+  
       const buttons = response.data.map((category) => {
         return [
           {
@@ -923,7 +957,7 @@ export class TelegramService implements OnModuleInit {
           },
         ];
       });
-
+  
       if (page > 1 || page < response.pagination.totalPages) {
         buttons.push([
           ...(page > 1
@@ -934,19 +968,21 @@ export class TelegramService implements OnModuleInit {
             : []),
         ]);
       }
-
+  
+      // Delete previous categories message if it exists
+      await this.deletePreviousMessage(chatId, 'categories');
+      
       const categoryMessage = await this.bot.sendMessage(
         chatId,
         `📋 *Categories - Page ${page}*`,
         {
           parse_mode: 'Markdown',
           reply_markup: { inline_keyboard: buttons },
-        },
+        }
       );
-
-      setTimeout(async () => {
-        await this.bot.deleteMessage(chatId, categoryMessage.message_id);
-      }, 5000);
+  
+      // Track this message with the 'categories' context
+      this.trackMessage(chatId, categoryMessage.message_id, 'categories');
     } catch (error) {
       this.logger.error('Error fetching categories:', error);
       this.bot.sendMessage(chatId, '❌ Error fetching categories.');
@@ -964,25 +1000,25 @@ export class TelegramService implements OnModuleInit {
         page,
         5,
       );
-
+  
       if (!response.data.length) {
         return this.bot.sendMessage(chatId, '❌ No products in this category.');
       }
-
+  
       const buttons = response.data.map((product) => [
         {
           text: product.name,
           callback_data: `product_${product.id}`,
         },
       ]);
-
-      buttons.push([
+  
+      buttons .push([
         {
           text: '🔙 Back to Categories',
           callback_data: 'back_to_categories',
         },
       ]);
-
+  
       if (page > 1 || page < response.pagination.totalPages) {
         buttons.push([
           ...(page > 1
@@ -1003,23 +1039,27 @@ export class TelegramService implements OnModuleInit {
             : []),
         ]);
       }
-
-      await this.deletePreviousMessage(chatId);
+  
+      // Delete previous products message if it exists
+      await this.deletePreviousMessage(chatId, 'products');
+  
       const previousMessage = await this.bot.sendMessage(
         chatId,
         `🛒 *Products - Page ${page}*`,
         {
           parse_mode: 'Markdown',
           reply_markup: { inline_keyboard: buttons },
-        },
+        }
       );
-
-      this.messageTracker.set(chatId, previousMessage.message_id);
+  
+      // Track this message with the 'products' context
+      this.trackMessage(chatId, previousMessage.message_id, 'products');
     } catch (error) {
       this.logger.error('Error fetching products:', error);
       this.bot.sendMessage(chatId, '❌ Error fetching products.');
     }
   }
+  
 
   private async sendUserProfile(chatId: number, telegramId: string) {
     try {
@@ -1171,11 +1211,14 @@ export class TelegramService implements OnModuleInit {
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: Object.values(CryptoType).map((type) => [
-          { text: type, callback_data: `wallet_type_${type}_${telegramId}` },
+          { 
+            text: String(type), 
+            callback_data: `wallet_type_${String(type)}_${telegramId}` 
+          },
         ]),
       },
     };
-
+  
     this.bot.sendMessage(chatId, '🛠 Select wallet type:', options);
   }
 

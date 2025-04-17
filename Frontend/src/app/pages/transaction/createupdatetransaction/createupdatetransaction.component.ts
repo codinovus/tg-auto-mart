@@ -226,7 +226,7 @@ export class CreateupdatetransactionComponent implements OnInit, OnDestroy {
         .subscribe({
           next: () => {
             this.messageService.showSuccess('Success', 'Transaction updated successfully!');
-            this.router.navigate(['/transactions']);
+            // this.router.navigate(['/transactions']);
           },
           error: (error) => {
             const errorMsg = error.error?.message || error.message || 'Failed to update transaction';
@@ -252,7 +252,7 @@ export class CreateupdatetransactionComponent implements OnInit, OnDestroy {
           .subscribe({
             next: () => {
               this.messageService.showSuccess('Success', 'Transaction created successfully!');
-              this.router.navigate(['/transactions']);
+            //   this.router.navigate(['/transactions']);
             },
             error: (error) => {
               const errorMsg = error.error?.message || error.message || 'Failed to create transaction';

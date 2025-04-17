@@ -124,7 +124,7 @@ export class CreateupdateproductcategoryComponent implements OnInit, OnDestroy {
         .subscribe({
           next: () => {
             this.messageService.showSuccess('Success', 'Product category updated successfully!');
-            this.router.navigate(['/product-categories']);
+            // this.router.navigate(['/product-categories']);
           },
           error: (error: any) => {
             const errorMsg = error.error?.message || error.message || 'Failed to update product category';

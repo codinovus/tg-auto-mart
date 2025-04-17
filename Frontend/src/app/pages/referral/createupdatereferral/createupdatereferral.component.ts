@@ -147,7 +147,7 @@ export class CreateupdatereferralComponent implements OnInit, OnDestroy {
         .subscribe({
           next: () => {
             this.messageService.showSuccess('Success', 'Referral updated successfully!');
-            this.router.navigate(['/referrals']);
+            // this.router.navigate(['/referrals']);
           },
           error: (error: any) => {
             const errorMsg = error.error?.message || error.message || 'Failed to update referral';
@@ -167,7 +167,7 @@ export class CreateupdatereferralComponent implements OnInit, OnDestroy {
         .subscribe({
           next: () => {
             this.messageService.showSuccess('Success', 'Referral created successfully!');
-            this.router.navigate(['/referrals']);
+            // this.router.navigate(['/referrals']);
           },
           error: (error: any) => {
             const errorMsg = error.error?.message || error.message || 'Failed to create referral';
